@@ -1,0 +1,546 @@
+"""
+力学定式化の使い分け — アニメーションデモ
+==========================================================
+「どちらが正しいか」ではなく「用途に応じた定式化を選ぶ」ことを
+3つの並列アニメーションで視覚的に示す。
+
+左  : ロボットアーム (ラグランジュ法)   M(q)q̈ + Cq̇ + g = τ
+中  : 自動車 経路追従 (Newton-Euler)   ẋ = Ax + Bu (Pure Pursuit)
+右  : 船舶 変針操船  (Newton-Euler)   Tψ̈ + ψ̇ = Kδ (Nomoto)
+
+実行方法:
+    python python/animation_demo.py
+
+出力:
+    animation_demo.gif  (プロジェクトルートに保存)
+
+依存: numpy, matplotlib, Pillow
+"""
+
+import os
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib import rcParams
+
+# ── フォント設定 ──────────────────────────────────────────────────────
+def _setup_font():
+    candidates = [
+        'Yu Gothic', 'Meiryo', 'Noto Sans CJK JP', 'IPAexGothic',
+        'Hiragino Sans', 'TakaoGothic', 'DejaVu Sans'
+    ]
+    from matplotlib import font_manager
+    available = {f.name for f in font_manager.fontManager.ttflist}
+    for name in candidates:
+        if name in available:
+            rcParams['font.family'] = name
+            return name
+    return 'DejaVu Sans'
+
+_setup_font()
+rcParams['axes.unicode_minus'] = False
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 1. ロボットアーム — ラグランジュ法
+# ══════════════════════════════════════════════════════════════════════
+# パラメータ
+_M1, _M2 = 1.0, 1.0
+_L1, _L2 = 1.0, 1.0
+_LC1, _LC2 = 0.5, 0.5
+_I1 = _M1 * _L1**2 / 12.0
+_I2 = _M2 * _L2**2 / 12.0
+_G  = 9.81
+
+
+def _arm_mass_matrix(q):
+    c2 = np.cos(q[1])
+    m11 = (_I1 + _I2 + _M1*_LC1**2
+           + _M2*(_L1**2 + _LC2**2 + 2*_L1*_LC2*c2))
+    m12 = _I2 + _M2*(_LC2**2 + _L1*_LC2*c2)
+    m22 = _I2 + _M2*_LC2**2
+    return np.array([[m11, m12], [m12, m22]])
+
+
+def _arm_rhs(q, dq):
+    s2 = np.sin(q[1])
+    h  = _M2 * _L1 * _LC2 * s2
+    cor = np.array([-h*dq[1]*(2*dq[0]+dq[1]), h*dq[0]**2])
+    g1  = ((_M1*_LC1 + _M2*_L1)*_G*np.cos(q[0])
+           + _M2*_LC2*_G*np.cos(q[0]+q[1]))
+    g2  = _M2*_LC2*_G*np.cos(q[0]+q[1])
+    return cor, np.array([g1, g2])
+
+
+def _arm_deriv(state):
+    q, dq = state[:2], state[2:]
+    M  = _arm_mass_matrix(q)
+    cor, grav = _arm_rhs(q, dq)
+    ddq = np.linalg.solve(M, -cor - grav)
+    return np.concatenate([dq, ddq])
+
+
+def _arm_energy(state):
+    q, dq = state[:2], state[2:]
+    M = _arm_mass_matrix(q)
+    T = 0.5 * dq @ M @ dq
+    y1 = _LC1 * np.sin(q[0])
+    y2 = _L1*np.sin(q[0]) + _LC2*np.sin(q[0]+q[1])
+    offset = _M1*_G*_LC1 + _M2*_G*(_L1+_LC2)
+    V = _M1*_G*y1 + _M2*_G*y2 + offset
+    return T + V
+
+
+def simulate_arm(t_end=8.0, dt=0.005):
+    n = int(t_end / dt)
+    state = np.array([0.0, np.pi/2, 0.0, 0.0])
+    q_hist = np.zeros((n, 2))
+    e_hist = np.zeros(n)
+    t_hist = np.arange(n) * dt
+    for i in range(n):
+        q_hist[i] = state[:2]
+        e_hist[i] = _arm_energy(state)
+        k1 = _arm_deriv(state)
+        k2 = _arm_deriv(state + 0.5*dt*k1)
+        k3 = _arm_deriv(state + 0.5*dt*k2)
+        k4 = _arm_deriv(state + dt*k3)
+        state = state + (dt/6)*(k1 + 2*k2 + 2*k3 + k4)
+    return t_hist, q_hist, e_hist
+
+
+def arm_fk(q):
+    """順運動学: 関節角度 → リンク端点座標"""
+    x1 = _L1 * np.cos(q[0])
+    y1 = _L1 * np.sin(q[0])
+    x2 = x1 + _L2 * np.cos(q[0] + q[1])
+    y2 = y1 + _L2 * np.sin(q[0] + q[1])
+    return (x1, y1), (x2, y2)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 2. 自動車 経路追従 — Newton-Euler (Pure Pursuit)
+# ══════════════════════════════════════════════════════════════════════
+def _make_ellipse_path(a=14.0, b=8.0, n=400):
+    th = np.linspace(0, 2*np.pi, n, endpoint=False)
+    px = a * np.cos(th)
+    py = b * np.sin(th)
+    dyaw = np.arctan2(np.gradient(py), np.gradient(px))
+    return np.stack([px, py], axis=1), dyaw
+
+
+def simulate_car(t_end=30.0, dt=0.05):
+    path, pyaw = _make_ellipse_path()
+    n_path = len(path)
+    Ld  = 3.0          # look-ahead distance [m]
+    L   = 2.7          # wheelbase [m]
+    v   = 5.0          # speed [m/s]
+
+    state = np.array([path[0,0], path[0,1] + 1.5, pyaw[0]])  # 横1.5mオフセット
+    n_steps = int(t_end / dt)
+    hist = np.zeros((n_steps, 3))
+    delta_hist = np.zeros(n_steps)
+    prev_idx = 0
+
+    for i in range(n_steps):
+        hist[i] = state
+        x, y, psi = state
+
+        # Pure Pursuit: look-ahead 点を探す
+        dists = np.sqrt((path[:,0]-x)**2 + (path[:,1]-y)**2)
+        # 現在最近傍から前方を探索
+        idx_range = np.arange(prev_idx, prev_idx + n_path//2) % n_path
+        d = dists[idx_range]
+        ahead = idx_range[d >= Ld]
+        if len(ahead) == 0:
+            ahead_idx = (prev_idx + 5) % n_path
+        else:
+            ahead_idx = ahead[0]
+        prev_idx = idx_range[np.argmin(d)]
+
+        tx, ty = path[ahead_idx]
+        # 車体座標系での目標方向
+        alpha = np.arctan2(ty - y, tx - x) - psi
+        alpha = (alpha + np.pi) % (2*np.pi) - np.pi
+        dist = np.hypot(tx - x, ty - y)
+        if dist < 1e-3:
+            dist = 1e-3
+        delta = np.arctan2(2*L*np.sin(alpha), dist)
+        delta = np.clip(delta, -np.deg2rad(35), np.deg2rad(35))
+        delta_hist[i] = delta
+
+        # キネマティック自転車モデル (Euler)
+        state[0] += v * np.cos(psi) * dt
+        state[1] += v * np.sin(psi) * dt
+        state[2] += (v / L) * np.tan(delta) * dt
+
+    t_hist = np.arange(n_steps) * dt
+    return t_hist, hist, delta_hist, path, pyaw
+
+
+def car_corners(x, y, psi, car_l=2.0, car_w=1.0):
+    """車体の4隅座標を返す (matplotlib Polygon 用)"""
+    corners = np.array([
+        [ car_l/2,  car_w/2],
+        [-car_l/2,  car_w/2],
+        [-car_l/2, -car_w/2],
+        [ car_l/2, -car_w/2],
+    ])
+    c, s = np.cos(psi), np.sin(psi)
+    R = np.array([[c, -s], [s, c]])
+    rotated = corners @ R.T
+    return rotated + np.array([x, y])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 3. 船舶 変針操船 — Newton-Euler (Nomoto 1次モデル)
+# ══════════════════════════════════════════════════════════════════════
+def simulate_ship(t_end=180.0, dt=0.1):
+    K_nom  = 0.18    # 舵効きゲイン
+    T_nom  = 50.0    # 時定数 [s]
+    psi_tgt = np.deg2rad(60.0)
+    Kp, Kd = 2.0, 8.0
+    v_ship = 5.0     # [m/s]
+    delta_max = np.deg2rad(35)
+
+    n = int(t_end / dt)
+    psi = 0.0
+    dpsi = 0.0
+    x, y = 0.0, 0.0
+
+    psi_hist  = np.zeros(n)
+    delta_hist = np.zeros(n)
+    x_hist, y_hist = np.zeros(n), np.zeros(n)
+    t_hist = np.arange(n) * dt
+
+    for i in range(n):
+        psi_hist[i]  = psi
+        x_hist[i]    = x
+        y_hist[i]    = y
+
+        err  = psi_tgt - psi
+        err  = (err + np.pi) % (2*np.pi) - np.pi
+        delta = Kp*err - Kd*dpsi
+        delta = np.clip(delta, -delta_max, delta_max)
+        delta_hist[i] = delta
+
+        # Nomoto: T·ψ̈ + ψ̇ = K·δ  → ψ̈ = (K·δ - ψ̇) / T
+        ddpsi = (K_nom * delta - dpsi) / T_nom
+        dpsi += ddpsi * dt
+        psi  += dpsi  * dt
+
+        x += v_ship * np.cos(psi) * dt
+        y += v_ship * np.sin(psi) * dt
+
+    return t_hist, psi_hist, delta_hist, x_hist, y_hist, psi_tgt
+
+
+def ship_polygon(x, y, psi, length=8.0, width=2.5):
+    """船体を五角形で表現"""
+    pts = np.array([
+        [ length*0.5,       0.0      ],   # 船首
+        [ length*0.2,  width*0.5    ],
+        [-length*0.5,  width*0.5    ],
+        [-length*0.5, -width*0.5    ],
+        [ length*0.2, -width*0.5    ],
+    ])
+    c, s = np.cos(psi), np.sin(psi)
+    R = np.array([[c, -s], [s, c]])
+    return pts @ R.T + np.array([x, y])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# メイン: シミュレーション実行 → アニメーション生成
+# ══════════════════════════════════════════════════════════════════════
+def main():
+    print("=" * 60)
+    print(" 力学定式化の使い分け — アニメーションデモ")
+    print("=" * 60)
+    print(" シミュレーションデータを計算中...")
+
+    t_arm, q_arm, e_arm      = simulate_arm(t_end=8.0, dt=0.005)
+    t_car, xy_car, d_car, path_xy, _ = simulate_car(t_end=30.0, dt=0.05)
+    t_ship, psi_ship, d_ship, xs, ys, psi_tgt = simulate_ship(t_end=180.0, dt=0.1)
+
+    print(f"  ロボットアーム : {len(t_arm)} ステップ")
+    print(f"  自動車        : {len(t_car)} ステップ")
+    print(f"  船舶          : {len(t_ship)} ステップ")
+
+    # アニメーション用に全データをフレーム数に統一
+    N_FRAMES = 120
+    arm_idx  = np.linspace(0, len(t_arm)-1,  N_FRAMES, dtype=int)
+    car_idx  = np.linspace(0, len(t_car)-1,  N_FRAMES, dtype=int)
+    ship_idx = np.linspace(0, len(t_ship)-1, N_FRAMES, dtype=int)
+
+    # ── 図の構成 ─────────────────────────────────────────────────────
+    fig = plt.figure(figsize=(13, 6))
+    fig.patch.set_facecolor('#0d1117')
+
+    gs = fig.add_gridspec(
+        2, 3,
+        height_ratios=[3, 1],
+        hspace=0.35, wspace=0.35,
+        left=0.05, right=0.97, top=0.88, bottom=0.08
+    )
+    ax_arm   = fig.add_subplot(gs[0, 0])
+    ax_car   = fig.add_subplot(gs[0, 1])
+    ax_ship  = fig.add_subplot(gs[0, 2])
+    ax_e     = fig.add_subplot(gs[1, 0])   # エネルギー
+    ax_dcur  = fig.add_subplot(gs[1, 1])   # 操舵角
+    ax_psi   = fig.add_subplot(gs[1, 2])   # 船首方位
+
+    DARK   = '#0d1117'
+    PANEL  = '#161b22'
+    TEXT   = '#e6edf3'
+    GREEN  = '#3fb950'
+    BLUE   = '#58a6ff'
+    ORANGE = '#ff7b72'
+    PURPLE = '#bc8cff'
+    YELLOW = '#e3b341'
+
+    for ax in [ax_arm, ax_car, ax_ship, ax_e, ax_dcur, ax_psi]:
+        ax.set_facecolor(PANEL)
+        ax.tick_params(colors=TEXT, labelsize=8)
+        for spine in ax.spines.values():
+            spine.set_color('#30363d')
+
+    # タイトル
+    fig.text(0.5, 0.97,
+             '力学定式化の使い分け — 用途が違えば、使う方程式も違う',
+             ha='center', va='top', color=TEXT, fontsize=13, fontweight='bold')
+
+    # 各パネルの見出しと方程式ラベル
+    labels = [
+        ('ロボットアーム',  'ラグランジュ法',  r'$M(q)\ddot{q}+C\dot{q}+g=\tau$',  GREEN),
+        ('自動車 経路追従', 'Newton-Euler 法', r'$\dot{x}=Ax+Bu$ (Pure Pursuit)',    BLUE),
+        ('船舶 変針操船',   'Newton-Euler 法', r'$T\ddot{\psi}+\dot{\psi}=K\delta$  (Nomoto)', ORANGE),
+    ]
+    for i, (title, method, eq, col) in enumerate(labels):
+        col_x = 0.175 + i * 0.31
+        fig.text(col_x, 0.925, title,
+                 ha='center', color=col, fontsize=11, fontweight='bold')
+        fig.text(col_x, 0.895, method,
+                 ha='center', color=TEXT, fontsize=8.5, alpha=0.75)
+        fig.text(col_x, 0.87, eq,
+                 ha='center', color=col, fontsize=8, alpha=0.9)
+
+    # ── アーム描画初期化 ─────────────────────────────────────────────
+    ax_arm.set_xlim(-2.3, 2.3)
+    ax_arm.set_ylim(-2.3, 2.3)
+    ax_arm.set_aspect('equal')
+    ax_arm.set_xlabel('x [m]', color=TEXT, fontsize=8)
+    ax_arm.set_ylabel('y [m]', color=TEXT, fontsize=8)
+    ax_arm.axhline(0, color='#30363d', lw=0.5)
+    ax_arm.axvline(0, color='#30363d', lw=0.5)
+    # 軌跡（リンク2先端）
+    tip2_x = [_L1*np.cos(q_arm[arm_idx[0],0]) + _L2*np.cos(q_arm[arm_idx[0],0]+q_arm[arm_idx[0],1])]
+    tip2_y = [_L1*np.sin(q_arm[arm_idx[0],0]) + _L2*np.sin(q_arm[arm_idx[0],0]+q_arm[arm_idx[0],1])]
+    (arm_trace,) = ax_arm.plot([], [], color=GREEN, lw=0.8, alpha=0.35)
+    (link1,) = ax_arm.plot([], [], color=GREEN,  lw=4, solid_capstyle='round')
+    (link2,) = ax_arm.plot([], [], color=PURPLE, lw=4, solid_capstyle='round')
+    joint0 = ax_arm.plot(0, 0, 'o', color=TEXT, ms=8, zorder=5)[0]
+    joint1 = ax_arm.plot([], [], 'o', color=GREEN,  ms=6, zorder=5)[0]
+    joint2 = ax_arm.plot([], [], 'o', color=PURPLE, ms=6, zorder=5)[0]
+    # 凡例
+    ax_arm.legend(
+        [mpatches.Patch(color=GREEN), mpatches.Patch(color=PURPLE)],
+        ['Link 1', 'Link 2'],
+        loc='upper right', fontsize=7,
+        facecolor=PANEL, edgecolor='#30363d', labelcolor=TEXT
+    )
+
+    # ── 車追従描画初期化 ──────────────────────────────────────────────
+    ax_car.set_xlim(-18, 18)
+    ax_car.set_ylim(-12, 12)
+    ax_car.set_aspect('equal')
+    ax_car.set_xlabel('x [m]', color=TEXT, fontsize=8)
+    ax_car.set_ylabel('y [m]', color=TEXT, fontsize=8)
+    ax_car.plot(path_xy[:,0], path_xy[:,1],
+                '--', color='#30363d', lw=1.2, label='目標経路')
+    (car_trace,) = ax_car.plot([], [], color=BLUE, lw=0.8, alpha=0.4)
+    car_patch = plt.Polygon(
+        car_corners(xy_car[0,0], xy_car[0,1], xy_car[0,2]),
+        closed=True, facecolor=BLUE, edgecolor='white', lw=0.8, zorder=5
+    )
+    ax_car.add_patch(car_patch)
+    car_arrow = ax_car.annotate(
+        '', xy=(0,0), xytext=(0,0),
+        arrowprops=dict(arrowstyle='->', color=YELLOW, lw=1.5)
+    )
+    rms_text = ax_car.text(
+        0.03, 0.97, '', transform=ax_car.transAxes,
+        color=TEXT, fontsize=7.5, va='top'
+    )
+
+    # ── 船舶描画初期化 ────────────────────────────────────────────────
+    ax_ship.set_xlim(-5, 900)
+    ax_ship.set_ylim(-5, 900)
+    ax_ship.set_aspect('equal')
+    ax_ship.set_xlabel('x [m]', color=TEXT, fontsize=8)
+    ax_ship.set_ylabel('y [m]', color=TEXT, fontsize=8)
+    # 目標方位ライン
+    L_line = 600
+    ax_ship.plot(
+        [0, L_line*np.cos(psi_tgt)],
+        [0, L_line*np.sin(psi_tgt)],
+        '--', color='#30363d', lw=1.0, label=f'目標方位 {np.rad2deg(psi_tgt):.0f}°'
+    )
+    ax_ship.legend(loc='lower right', fontsize=7,
+                   facecolor=PANEL, edgecolor='#30363d', labelcolor=TEXT)
+    (ship_trace,) = ax_ship.plot([], [], color=ORANGE, lw=0.8, alpha=0.5)
+    ship_patch = plt.Polygon(
+        ship_polygon(xs[0], ys[0], psi_ship[0]),
+        closed=True, facecolor=ORANGE, edgecolor='white', lw=0.8, zorder=5
+    )
+    ax_ship.add_patch(ship_patch)
+    psi_text = ax_ship.text(
+        0.03, 0.97, '', transform=ax_ship.transAxes,
+        color=TEXT, fontsize=7.5, va='top'
+    )
+
+    # ── 下段サブプロット初期化 ───────────────────────────────────────
+    e_ref = e_arm[0]
+
+    ax_e.set_xlim(0, t_arm[-1])
+    ax_e.set_ylim(e_ref - 0.005, e_ref + 0.015)
+    ax_e.set_xlabel('時刻 [s]', color=TEXT, fontsize=7)
+    ax_e.set_ylabel('T+V [J]', color=TEXT, fontsize=7)
+    ax_e.set_title('エネルギー保存 (駆動トルクなし)', color=TEXT, fontsize=7.5)
+    ax_e.axhline(e_ref, color='#30363d', lw=1, ls='--')
+    (line_e,) = ax_e.plot([], [], color=GREEN, lw=1.2)
+    e_text = ax_e.text(
+        0.02, 0.92, '', transform=ax_e.transAxes,
+        color=GREEN, fontsize=7, va='top'
+    )
+
+    ax_dcur.set_xlim(0, t_car[-1])
+    ax_dcur.set_ylim(-40, 40)
+    ax_dcur.set_xlabel('時刻 [s]', color=TEXT, fontsize=7)
+    ax_dcur.set_ylabel('操舵角 [°]', color=TEXT, fontsize=7)
+    ax_dcur.set_title('前輪操舵角', color=TEXT, fontsize=7.5)
+    ax_dcur.axhline(0, color='#30363d', lw=0.8)
+    (line_d,) = ax_dcur.plot([], [], color=BLUE, lw=1.2)
+
+    ax_psi.set_xlim(0, t_ship[-1])
+    ax_psi.set_ylim(-5, np.rad2deg(psi_tgt) + 10)
+    ax_psi.set_xlabel('時刻 [s]', color=TEXT, fontsize=7)
+    ax_psi.set_ylabel('方位 [°]', color=TEXT, fontsize=7)
+    ax_psi.set_title('船首方位', color=TEXT, fontsize=7.5)
+    ax_psi.axhline(np.rad2deg(psi_tgt), color='#30363d', lw=1, ls='--',
+                   label=f'目標 {np.rad2deg(psi_tgt):.0f}°')
+    ax_psi.legend(fontsize=7, facecolor=PANEL, edgecolor='#30363d', labelcolor=TEXT)
+    (line_psi,) = ax_psi.plot([], [], color=ORANGE, lw=1.2)
+
+    # 進捗バー
+    prog_bar = fig.text(0.5, 0.015, '', ha='center', color=TEXT, fontsize=7)
+
+    # ── アニメーション更新関数 ────────────────────────────────────────
+    def update(frame):
+        ai = arm_idx[frame]
+        ci = car_idx[frame]
+        si = ship_idx[frame]
+
+        # --- ロボットアーム ---
+        q = q_arm[ai]
+        p1, p2 = arm_fk(q)
+        link1.set_data([0, p1[0]], [0, p1[1]])
+        link2.set_data([p1[0], p2[0]], [p1[1], p2[1]])
+        joint1.set_data([p1[0]], [p1[1]])
+        joint2.set_data([p2[0]], [p2[1]])
+        # 先端軌跡
+        tip_xi = (_L1*np.cos(q_arm[arm_idx[:frame+1],0])
+                  + _L2*np.cos(q_arm[arm_idx[:frame+1],0] + q_arm[arm_idx[:frame+1],1]))
+        tip_yi = (_L1*np.sin(q_arm[arm_idx[:frame+1],0])
+                  + _L2*np.sin(q_arm[arm_idx[:frame+1],0] + q_arm[arm_idx[:frame+1],1]))
+        arm_trace.set_data(tip_xi, tip_yi)
+
+        # --- 自動車 ---
+        cx, cy, cpsi = xy_car[ci]
+        corners = car_corners(cx, cy, cpsi)
+        car_patch.set_xy(corners)
+        car_trace.set_data(xy_car[:ci+1, 0], xy_car[:ci+1, 1])
+        # 方向矢印
+        arr_len = 2.5
+        car_arrow.xy     = (cx + arr_len*np.cos(cpsi), cy + arr_len*np.sin(cpsi))
+        car_arrow.xytext = (cx, cy)
+        # RMS 偏差テキスト
+        if ci > 0:
+            dists_to_path = np.min(
+                np.sqrt((xy_car[:ci+1,0:1] - path_xy[:,0])**2
+                      + (xy_car[:ci+1,1:2] - path_xy[:,1])**2),
+                axis=1
+            )
+            rms = np.sqrt(np.mean(dists_to_path**2))
+            rms_text.set_text(f'RMS偏差: {rms:.3f} m\n操舵: {np.rad2deg(d_car[ci]):.1f}°')
+
+        # --- 船舶 ---
+        ship_patch.set_xy(ship_polygon(xs[si], ys[si], psi_ship[si]))
+        ship_trace.set_data(xs[:si+1], ys[:si+1])
+        psi_deg = np.rad2deg(psi_ship[si])
+        tgt_deg = np.rad2deg(psi_tgt)
+        psi_text.set_text(
+            f'方位: {psi_deg:.1f}°\n目標: {tgt_deg:.0f}°\n'
+            f'誤差: {tgt_deg-psi_deg:.1f}°\n時刻: {t_ship[si]:.0f} s'
+        )
+
+        # --- 下段グラフ ---
+        # エネルギー
+        line_e.set_data(t_arm[arm_idx[:frame+1]], e_arm[arm_idx[:frame+1]])
+        drift = abs(e_arm[ai] - e_ref)
+        e_text.set_text(f'変動: {drift:.2e} J\n({drift/e_ref*100:.5f}%)')
+
+        # 操舵角
+        line_d.set_data(t_car[car_idx[:frame+1]], np.rad2deg(d_car[car_idx[:frame+1]]))
+
+        # 方位
+        line_psi.set_data(t_ship[ship_idx[:frame+1]], np.rad2deg(psi_ship[ship_idx[:frame+1]]))
+
+        # 進捗
+        prog_bar.set_text(
+            f'フレーム {frame+1}/{N_FRAMES}  |  '
+            f'アーム: {t_arm[ai]:.1f}s  |  '
+            f'自動車: {t_car[ci]:.1f}s  |  '
+            f'船舶: {t_ship[si]:.0f}s'
+        )
+
+        return (link1, link2, joint1, joint2, arm_trace,
+                car_patch, car_trace, rms_text,
+                ship_patch, ship_trace, psi_text,
+                line_e, e_text, line_d, line_psi, prog_bar)
+
+    print(" アニメーション生成中... (しばらくお待ちください)")
+    ani = FuncAnimation(
+        fig, update,
+        frames=N_FRAMES,
+        interval=50,
+        blit=False
+    )
+
+    out_path = os.path.join(OUTPUT_DIR, 'animation_demo.gif')
+    writer = PillowWriter(fps=20)
+    ani.save(out_path, writer=writer, dpi=80)
+    plt.close(fig)
+
+    out_abs = os.path.abspath(out_path)
+    print(f"\n 保存完了: {out_abs}")
+    print()
+    print(" ┌──────────────────────────────────────────────────────┐")
+    print(" │  左  ロボットアーム  — ラグランジュ法               │")
+    print(" │       M(q)q̈ + Cq̇ + g = τ                           │")
+    print(" │       保存系 → エネルギーが理論通り保存される        │")
+    print(" │                                                      │")
+    print(" │  中  自動車 経路追従 — Newton-Euler 法               │")
+    print(" │       ẋ = Ax + Bu  (Pure Pursuit)                   │")
+    print(" │       非ホロノミック拘束 → 状態方程式に直結          │")
+    print(" │                                                      │")
+    print(" │  右  船舶 変針操船  — Newton-Euler 法                │")
+    print(" │       Tψ̈ + ψ̇ = Kδ  (Nomoto)                       │")
+    print(" │       付加質量・流体抗力 → 応答時間は数十秒〜分      │")
+    print(" └──────────────────────────────────────────────────────┘")
+
+
+if __name__ == '__main__':
+    main()

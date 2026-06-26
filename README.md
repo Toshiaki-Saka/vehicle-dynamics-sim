@@ -59,6 +59,9 @@ MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
 ├── visualize_results.py            C++ の results.json をグラフ化
 ├── docs/
 │   └── why_newton_euler.md         なぜ Newton-Euler 形式を使うのかの解説
+├── tests/
+│   ├── regression_test.cpp         C++ 数値回帰テスト (ctest 登録)
+│   └── test_param_consistency.py   C++/Python のパラメータ整合チェック
 └── examples/                       サンプル入出力 (lqr_k.json, results.json)
 ```
 
@@ -139,6 +142,35 @@ python python/lagrangian_arm.py
 ラグランジュ法から立て、重力下の自由運動をシミュレーションします。
 駆動トルクなしでは全エネルギーが保存されること(数値誤差レベル)も確認でき、
 本体の Newton-Euler モデルとの対比になります。
+
+## テスト
+
+数値回帰とパラメータ整合を CI(GitHub Actions)で検証しています。
+
+| テスト | 内容 |
+|---|---|
+| [`tests/regression_test.cpp`](tests/regression_test.cpp) (ctest) | C++ の主要数値(追従 RMS、スタビリティファクタ Kv、航空機の短周期/フゴイド固有値、船舶の整定時間)を既知ベースラインに固定。逸脱で非0終了 |
+| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | C++ 版と Python 版が**同一のシナリオ定数**を使っていることをソースレベルで検証(ズレ検知・ビルド不要) |
+
+```bash
+# C++ 回帰テスト(ビルド後)
+ctest --test-dir build -C Release --output-on-failure
+
+# パラメータ整合(ビルド不要)
+python tests/test_param_consistency.py
+```
+
+### 共有シナリオ定数
+
+C++ 版と Python 版は次の定数を共有します。**片方だけ変更すると両系統の結果が
+ズレる**ため、上の `test_param_consistency.py` が同一性を監視しています。
+
+| 定数 | 値 |
+|---|---|
+| 楕円経路 (a, b, 分割数) | 50 m, 30 m, 400 |
+| 初期状態 (x, y, ψ) | (50 m, 2 m, π/2) |
+| 速度 v / 時間刻み dt | 8.0 m/s / 0.05 s |
+| ホイールベース | 2.7 m |
 
 ## 動作環境
 

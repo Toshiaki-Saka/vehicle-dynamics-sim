@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # C++ build + numerical regression test (ctest). The regression test pins the
+  # headline numbers (tracking RMS, understeer gradient, aircraft modes, ship
+  # settle time) to the committed baseline, so any drift fails the build.
+  # Eigen / nlohmann-json are fetched via FetchContent and cached.
+  # ---------------------------------------------------------------------------
+  cpp:
+    name: cpp (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache FetchContent dependencies
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: ${{ matrix.os }}-deps-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j
+
+      - name: Test (CTest)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Run simulation and check results.json is produced
+        shell: bash
+        run: |
+          cd build
+          if [ -f Release/vehicle_dynamics.exe ]; then
+            ./Release/vehicle_dynamics.exe ../examples/lqr_k.json results.json
+          else
+            ./vehicle_dynamics ../examples/lqr_k.json results.json
+          fi
+          test -s results.json && echo "results.json generated OK"
+
+  # ---------------------------------------------------------------------------
+  # Python: parameter-consistency guard (C++/Python shared scenario must match)
+  # and a headless run of the full simulation.
+  # ---------------------------------------------------------------------------
+  python:
+    name: python (3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Parameter consistency (C++ vs Python)
+        run: python tests/test_param_consistency.py
+      - name: Run simulation headless
+        env:
+          MPLBACKEND: Agg
+        run: python vehicle_dynamics_simulation.py

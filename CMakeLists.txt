@@ -50,3 +50,27 @@ if(MSVC)
 else()
     target_compile_options(vehicle_dynamics PRIVATE -Wall -Wextra -O2)
 endif()
+
+# ── Numerical regression test (ctest) ────────────────────────────
+enable_testing()
+
+add_executable(regression_test
+    tests/regression_test.cpp
+    src/path_utils.cpp
+    src/car_tracking.cpp
+    src/car_dynamic.cpp
+    src/aircraft.cpp
+    src/ship.cpp
+)
+target_include_directories(regression_test PRIVATE src)
+target_link_libraries(regression_test PRIVATE
+    Eigen3::Eigen
+    nlohmann_json::nlohmann_json
+)
+if(MSVC)
+    target_compile_options(regression_test PRIVATE /W4 /O2 /utf-8)
+else()
+    target_compile_options(regression_test PRIVATE -Wall -Wextra -O2)
+endif()
+
+add_test(NAME regression_test COMMAND regression_test)

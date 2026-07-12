@@ -14,6 +14,7 @@
 
 | ドキュメント | 内容 |
 |---|---|
+| [`docs/modeling_philosophy.md`](docs/modeling_philosophy.md) | **表現する対象に応じて適したモデリング手法がある** — 本プロジェクトの中心主張をまとめた導入ドキュメント |
 | [`docs/why_newton_euler.md`](docs/why_newton_euler.md) | なぜ車両モデルに Newton-Euler を使うのかの解説 |
 | [`docs/equation_selection_guide.md`](docs/equation_selection_guide.md) | **用途に応じた力学定式化の選び方（詳細版）** — ラグランジュ・Newton-Euler・Kane の使い分けを実際のシミュレーション結果とともに解説 |
 
@@ -48,6 +49,7 @@ MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
 .
 ├── CMakeLists.txt                  C++ ビルド設定
 ├── build.sh / build.bat            ビルドスクリプト (Linux・macOS / Windows)
+├── build_and_run.ps1               ビルド〜実行〜可視化を一括実行 (Windows/PowerShell)
 ├── requirements.txt                Python 依存ライブラリ
 ├── src/                            C++ ソース (Newton-Euler 形式の各モデル)
 ├── python/
@@ -64,6 +66,37 @@ MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
 │   └── test_param_consistency.py   C++/Python のパラメータ整合チェック
 └── examples/                       サンプル入出力 (lqr_k.json, results.json)
 ```
+
+## クイックスタート (Windows / PowerShell)
+
+ビルド・シミュレーション実行・グラフ化・アニメーション生成をまとめて行う
+`build_and_run.ps1` を用意しています。リポジトリのルートで実行してください。
+
+```powershell
+.\build_and_run.ps1
+```
+
+実行される処理:
+
+1. C++ プロジェクトのビルド(CMake configure + build)
+2. LQR ゲインの事前計算(`python/compute_lqr_gain.py`)
+3. C++ シミュレーションの実行(`results.json` を出力)
+4. 結果のグラフ化(`cpp_results.png` ほか)
+5. アニメーション GIF の生成(`animation_demo.gif`)
+
+Python が見つからない場合、Python を使うステップ(2・4・5)は自動でスキップされます。
+主なオプション:
+
+```powershell
+.\build_and_run.ps1 -SkipBuild        # ビルド済みなら再ビルドを省略
+.\build_and_run.ps1 -SkipAnimation    # アニメーション生成を省略(時間短縮)
+.\build_and_run.ps1 -Python python3   # 使用する Python コマンドを指定
+```
+
+> PowerShell の実行ポリシーでスクリプトがブロックされる場合は、次のように実行できます。
+> `powershell -ExecutionPolicy Bypass -File .\build_and_run.ps1`
+
+個別のステップを手動で実行したい場合や Linux / macOS の手順は、以下を参照してください。
 
 ## 使い方
 
@@ -138,7 +171,7 @@ python python/gui_viewer.py
 python python/lagrangian_arm.py
 ```
 
-2リンクロボットアームの運動方程式を `M(q) q̈ + C(q,q̇) q̇ + g(q) = τ` の形で
+2リンクロボットアームの運動方程式を $M(q)\ddot{q} + C(q,\dot{q})\dot{q} + g(q) = \tau$ の形で
 ラグランジュ法から立て、重力下の自由運動をシミュレーションします。
 駆動トルクなしでは全エネルギーが保存されること(数値誤差レベル)も確認でき、
 本体の Newton-Euler モデルとの対比になります。

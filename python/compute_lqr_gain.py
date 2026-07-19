@@ -1,13 +1,14 @@
 """
-LQR ゲイン計算 (Python に残す部分)
+LQR gain computation (the part kept in Python)
 ==============================================
-連続時間 Riccati 方程式 (CARE) を scipy で解いて K を出力する。
+Solve the continuous-time algebraic Riccati equation (CARE) with scipy and
+output the gain K.
 
   A^T P + P A - P B R^{-1} B^T P + Q = 0
   K = R^{-1} B^T P
 
-この式の「解析的導出」に相当する部分を Python に残し、
-C++ は K の数値だけを受け取って制御に使う。
+The part corresponding to the "analytical derivation" of this equation is kept
+in Python; C++ merely receives the numeric values of K and uses them for control.
 """
 
 import sys
@@ -23,8 +24,9 @@ def compute_lqr_gain(
     R_val=1.0,
 ):
     """
-    経路偏差4次系 x = (e_y, ė_y, e_ψ, ė_ψ) の LQR ゲインを返す。
-    参考: Rajamani "Vehicle Dynamics and Control" Eq.(2.45)-(2.49)
+    Return the LQR gain for the 4th-order path-deviation system
+    x = (e_y, ė_y, e_ψ, ė_ψ).
+    Reference: Rajamani "Vehicle Dynamics and Control" Eq.(2.45)-(2.49)
     """
     A = np.array([
         [0, 1, 0, 0],

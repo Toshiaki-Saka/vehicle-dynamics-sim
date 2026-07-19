@@ -8,7 +8,7 @@ namespace {
 
 constexpr double DEG35_RAD = 35.0 * std::numbers::pi / 180.0;
 
-// キネマティック自転車モデル 1ステップ更新
+// Kinematic bicycle model, one-step update
 State3D bicycle_step(const State3D& s, double v, double delta, double L, double dt) {
     return {
         .x   = s.x   + v * std::cos(s.psi) * dt,
@@ -17,7 +17,7 @@ State3D bicycle_step(const State3D& s, double v, double delta, double L, double 
     };
 }
 
-// 操舵履歴から RMS 偏差と最大操舵を確定してヒストリを返す
+// Determine RMS deviation and maximum steering from the steering history and return the history
 TrackingHistory finalize(std::vector<double>&& x, std::vector<double>&& y,
                           std::vector<double>&& psi, std::vector<double>&& delta,
                           const Path& path)
@@ -60,7 +60,7 @@ TrackingHistory simulate_pure_pursuit(
         double Ld = std::max(k * v, Ld_min);
         prev_idx = find_nearest_in_window(state.x, state.y, path, prev_idx);
 
-        // ルックアヘッド距離以上の点を経路上で前進しながら探す
+        // Search forward along the path for a point at least the look-ahead distance away
         int target_idx = prev_idx;
         for (int j = 0; j < n_path; ++j) {
             int cand = (prev_idx + j) % n_path;
@@ -97,7 +97,7 @@ TrackingHistory simulate_stanley(
     for (int i = 0; i < n_steps; ++i) {
         xs.push_back(state.x); ys.push_back(state.y); psis.push_back(state.psi);
 
-        // 前輪位置
+        // Front-wheel position
         double fx = state.x + L * std::cos(state.psi);
         double fy = state.y + L * std::sin(state.psi);
         prev_idx = find_nearest_in_window(fx, fy, path, prev_idx);
@@ -105,7 +105,7 @@ TrackingHistory simulate_stanley(
         double yaw_p = path[prev_idx].yaw;
         double dx = path[prev_idx].x - fx;
         double dy = path[prev_idx].y - fy;
-        // 経路左法線への射影 → 符号付き横偏差
+        // Projection onto the path's left normal -> signed lateral deviation
         double e_y  = dx * (-std::sin(yaw_p)) + dy * std::cos(yaw_p);
         double e_psi = normalize_angle(yaw_p - state.psi);
 
@@ -120,8 +120,8 @@ TrackingHistory simulate_stanley(
 }
 
 // ── LQR ──────────────────────────────────────────────────────────────
-// K ゲインは外部(Python scipy CARE)で計算した値を受け取る。
-// 状態 x = (e_y, ė_y, e_ψ, ė_ψ) で ė_y・ė_ψ は 0 で近似(純粋幾何追従)。
+// The K gain is received as a value computed externally (Python scipy CARE).
+// State x = (e_y, ė_y, e_ψ, ė_ψ), where ė_y and ė_ψ are approximated as 0 (purely geometric tracking).
 TrackingHistory simulate_lqr(
     const Path& path, const State3D& init,
     double v, double dt, int n_steps,

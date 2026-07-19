@@ -13,9 +13,9 @@ ShipResult simulate_ship_nomoto(
     double psi_target = psi_target_deg * pi / 180.0;
     double delta_max  = 35.0 * pi / 180.0;
 
-    // ── Nomoto 1次モデル: T·ψ̈ + ψ̇ = K·δ ─────────────────────────
-    // 状態 x = [ψ, ψ̇]^T
-    // PD 制御: δ = clip(Kp·e - Kd·ψ̇, ±δ_max)
+    // ── Nomoto first-order model: T·ψ̈ + ψ̇ = K·δ ─────────────────
+    // State x = [ψ, ψ̇]^T
+    // PD control: δ = clip(Kp·e - Kd·ψ̇, ±δ_max)
     OdeFunc<2> f = [&](const Eigen::Vector2d& x) -> Eigen::Vector2d {
         double psi     = x(0);
         double psi_dot = x(1);
@@ -51,7 +51,7 @@ ShipResult simulate_ship_nomoto(
         res.delta.push_back(delta);
     }
 
-    // 船体軌跡(縦速度 v_ship 一定)
+    // Ship trajectory (constant longitudinal velocity v_ship)
     res.x_pos.push_back(0.0);
     res.y_pos.push_back(0.0);
     for (int i = 1; i < n_steps; ++i) {
@@ -60,7 +60,7 @@ ShipResult simulate_ship_nomoto(
         res.y_pos.push_back(res.y_pos.back() + v_ship * std::sin(res.psi[i - 1]) * dt);
     }
 
-    // 整定時間(±1.5度以内で以後も逸脱しない最初の時刻)
+    // Settling time (the first instant within ±1.5 degrees that never deviates again afterward)
     res.settle_time = -1.0;
     for (int i = 0; i < n_steps; ++i) {
         if (std::abs(res.psi[i] - psi_target) < tol) {

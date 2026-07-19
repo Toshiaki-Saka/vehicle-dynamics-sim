@@ -2,7 +2,7 @@
 #include "types.hpp"
 #include <Eigen/Dense>
 
-// Pure Pursuit 経路追従
+// Pure Pursuit path tracking
 TrackingHistory simulate_pure_pursuit(
     const Path& path,
     const State3D& initial_state,
@@ -12,7 +12,7 @@ TrackingHistory simulate_pure_pursuit(
     double lookahead_min  = 4.0
 );
 
-// Stanley 経路追従 (前輪基準・横偏差陽的使用)
+// Stanley path tracking (front-wheel reference, explicit use of lateral deviation)
 TrackingHistory simulate_stanley(
     const Path& path,
     const State3D& initial_state,
@@ -21,7 +21,7 @@ TrackingHistory simulate_stanley(
     double k_gain    = 2.5
 );
 
-// LQR 経路追従 (K ゲインは Python scipy CARE で計算し引数として渡す)
+// LQR path tracking (the K gain is computed with Python scipy CARE and passed as an argument)
 TrackingHistory simulate_lqr(
     const Path& path,
     const State3D& initial_state,

@@ -7,10 +7,10 @@
 AircraftResult simulate_aircraft_longitudinal(
     double t_end, int n_steps, double delta_e_deg)
 {
-    // ── Boeing 747 縦運動線形モデル ──────────────────────────────────
-    // 状態 x = [Δu (m/s), w (m/s), q (rad/s), θ (rad)]^T
-    // 飛行条件: 高度 12,200m, V = 235m/s (M≈0.8)
-    // 参考: Etkin & Reid "Dynamics of Flight" 代表パラメータ
+    // ── Boeing 747 longitudinal linear model ────────────────────────
+    // State x = [Δu (m/s), w (m/s), q (rad/s), θ (rad)]^T
+    // Flight condition: altitude 12,200 m, V = 235 m/s (M ~ 0.8)
+    // Reference: representative parameters from Etkin & Reid "Dynamics of Flight"
     Eigen::Matrix4d A;
     A << -0.00643,   0.0263,    0.0,   -9.81,
          -0.0941,   -0.624,  235.0,    0.0,
@@ -19,13 +19,13 @@ AircraftResult simulate_aircraft_longitudinal(
 
     Eigen::Vector4d B(0.0, -32.7, -2.08, 0.0);
 
-    // 固有値解析 → 短周期・フゴイドモードの識別
+    // Eigenvalue analysis -> identify short-period and phugoid modes
     Eigen::EigenSolver<Eigen::Matrix4d> es(A);
     auto eigvals = es.eigenvalues();
 
     double delta_e = delta_e_deg * std::numbers::pi / 180.0;
 
-    // ẋ = Ax + B·δ_e (定常ステップ入力)
+    // ẋ = Ax + B·δ_e (constant step input)
     OdeFunc<4> f = [&](const Eigen::Vector4d& x) -> Eigen::Vector4d {
         return A * x + B * delta_e;
     };

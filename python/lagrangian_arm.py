@@ -1,30 +1,37 @@
 """
-対比用ミニ例: 2リンクロボットアームのラグランジュ法シミュレーション
+A small contrasting example: Lagrangian simulation of a 2-link robot arm
 ======================================================================
-本リポジトリ本体(自動車・航空機・船舶)は、すべて Newton-Euler 形式で
-運動方程式を立てています。docs/why_newton_euler.md で説明したとおり、
-非ホロノミック拘束と非保存力が支配する輸送機関では、それが素直だからです。
+The main body of this repository (car / aircraft / ship) formulates all
+equations of motion in Newton-Euler form. As explained in
+docs_en/why_newton_euler.md, that is the natural choice for vehicles governed
+by nonholonomic constraints and non-conservative forces.
 
-では、ラグランジュ形式が「自然な選択」になるのはどういう系か。
-その典型がロボットアームです。このスクリプトは、対比のための最小例として
-2リンク平面アームの運動方程式をラグランジュ法で立て、自由運動(重力下で
-振り子のように落ちる様子)をシミュレーションします。
+So for what kind of system does the Lagrangian form become the "natural
+choice"? The classic example is the robot arm. As a minimal example for
+contrast, this script formulates the equations of motion of a 2-link planar arm
+with the Lagrangian method and simulates its free motion (falling like a
+pendulum under gravity).
 
-なぜここではラグランジュ法が素直なのか:
-  - 関節の拘束はホロノミック(座標どうしの関係)。一般化座標 q = (θ1, θ2)
-    を選んだ時点で拘束が消え、未定乗数が要らない。
-  - 駆動トルク以外は重力(保存力)が主。L = T - V の枠組みにそのまま乗る。
-  - スカラ関数 L ひとつから、機械的な偏微分だけで運動方程式が出る。
+Why is the Lagrangian method straightforward here:
+  - The joint constraints are holonomic (relations between coordinates). Once the
+    generalized coordinates q = (θ1, θ2) are chosen, the constraints vanish and no
+    Lagrange multipliers are needed.
+  - Apart from the drive torque, gravity (a conservative force) dominates. This
+    fits directly into the L = T - V framework.
+  - From the single scalar function L, the equations of motion follow through
+    purely mechanical partial differentiation.
 
-運動方程式は標準形  M(q) q̈ + C(q, q̇) q̇ + g(q) = τ  になります。
-これを q̈ について解いて状態空間に落とし、RK4 で積分します。
-(輸送機関では Newton-Euler が最初から状態方程式に直結するのに対し、
- ここでは M の逆行列を取る一手間が入る ── という違いも観察できます。)
+The equations of motion take the standard form
+M(q) q̈ + C(q, q̇) q̇ + g(q) = τ.
+We solve this for q̈, cast it into state-space form, and integrate with RK4.
+(You can also observe the difference: for vehicles, Newton-Euler connects
+ directly to the state equations from the start, whereas here an extra step of
+ inverting M is required.)
 
-実行方法:
+How to run:
     python python/lagrangian_arm.py
 
-依存ライブラリ: numpy, matplotlib
+Dependencies: numpy, matplotlib
 """
 
 import os
@@ -32,28 +39,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# ── 物理パラメータ ───────────────────────────────────────────────
-M1, M2 = 1.0, 1.0      # 各リンク質量 [kg]
-L1, L2 = 1.0, 1.0      # 各リンク長 [m]
-LC1, LC2 = 0.5, 0.5    # 各リンク重心位置(根元から)[m]
-I1, I2 = M1 * L1**2 / 12.0, M2 * L2**2 / 12.0   # 重心まわり慣性 [kg m^2]
-G = 9.81               # 重力加速度 [m/s^2]
+# ── Physical parameters ──────────────────────────────────────────
+M1, M2 = 1.0, 1.0      # mass of each link [kg]
+L1, L2 = 1.0, 1.0      # length of each link [m]
+LC1, LC2 = 0.5, 0.5    # center-of-mass position of each link (from the base) [m]
+I1, I2 = M1 * L1**2 / 12.0, M2 * L2**2 / 12.0   # inertia about the center of mass [kg m^2]
+G = 9.81               # gravitational acceleration [m/s^2]
 
 
 def manipulator_matrices(q):
     """
-    ラグランジュ法で導いた 2リンクアームの M(q), C(q,q̇)·q̇, g(q) を返す。
+    Return M(q), C(q,q̇)·q̇, and g(q) for the 2-link arm as derived with the
+    Lagrangian method.
 
-    ラグランジアン L = T - V から
+    Computing
         d/dt(∂L/∂q̇) - ∂L/∂q = τ
-    を計算すると、平面2リンクアームについては以下の閉じた式になる
-    (導出は任意の robotics 教科書、例: Spong et al. "Robot Modeling
-     and Control" 第7章 を参照)。
+    from the Lagrangian L = T - V yields the following closed-form expressions
+    for the planar 2-link arm (for the derivation see any robotics textbook,
+    e.g. Spong et al. "Robot Modeling and Control", Chapter 7).
     """
     q1, q2 = q
     c2 = np.cos(q2)
 
-    # 質量(慣性)行列 M(q)
+    # Mass (inertia) matrix M(q)
     m11 = (I1 + I2 + M1 * LC1**2 + M2 * (L1**2 + LC2**2 + 2 * L1 * LC2 * c2))
     m12 = I2 + M2 * (LC2**2 + L1 * LC2 * c2)
     m22 = I2 + M2 * LC2**2
@@ -63,19 +71,19 @@ def manipulator_matrices(q):
 
 
 def manipulator_rhs(q, dq):
-    """コリオリ・遠心項 C(q,q̇)q̇ と重力項 g(q) をまとめて返す。"""
+    """Return the Coriolis/centrifugal term C(q,q̇)q̇ and the gravity term g(q) together."""
     q1, q2 = q
     dq1, dq2 = dq
     s2 = np.sin(q2)
     h = M2 * L1 * LC2 * s2
 
-    # コリオリ・遠心項
+    # Coriolis/centrifugal term
     coriolis = np.array([
         -h * dq2 * (2 * dq1 + dq2),
          h * dq1 * dq1,
     ])
 
-    # 重力項 g(q)
+    # Gravity term g(q)
     g1 = ((M1 * LC1 + M2 * L1) * G * np.cos(q1)
           + M2 * LC2 * G * np.cos(q1 + q2))
     g2 = M2 * LC2 * G * np.cos(q1 + q2)
@@ -86,12 +94,12 @@ def manipulator_rhs(q, dq):
 
 def dynamics(state, tau=np.zeros(2)):
     """
-    状態 x = [q1, q2, dq1, dq2] の時間微分を返す。
+    Return the time derivative of the state x = [q1, q2, dq1, dq2].
 
-    運動方程式  M(q) q̈ + C q̇ + g = τ  を q̈ について解く:
+    Solve the equations of motion  M(q) q̈ + C q̇ + g = τ  for q̈:
         q̈ = M^{-1} (τ - C q̇ - g)
-    Newton-Euler なら最初から状態方程式に直結するのに対し、
-    ラグランジュ形式ではこの M^{-1} を取る一手間が入る。
+    Whereas Newton-Euler connects directly to the state equations from the start,
+    the Lagrangian form requires this extra step of taking M^{-1}.
     """
     q  = state[:2]
     dq = state[2:]
@@ -110,28 +118,30 @@ def rk4_step(state, dt):
 
 
 def total_energy(state):
-    """全力学的エネルギー T + V。駆動トルク0なら保存されるはず。"""
+    """Total mechanical energy T + V. Should be conserved when the drive torque is zero."""
     q  = state[:2]
     dq = state[2:]
     M = manipulator_matrices(q)
     T = 0.5 * dq @ M @ dq
 
     q1, q2 = q
-    # 各リンク重心高さ(関節1を原点、x 軸水平基準)
+    # Height of each link's center of mass (joint 1 at the origin, x-axis horizontal reference)
     y1 = LC1 * np.sin(q1)
     y2 = L1 * np.sin(q1) + LC2 * np.sin(q1 + q2)
-    # 位置エネルギーの基準点を「全リンクが真下を向いた最下点」に取り、
-    # V が常に 0 以上になるようオフセットする(保存量を見やすくするため)。
+    # Take the potential-energy reference at the lowest point where all links point
+    # straight down, offsetting so that V is always >= 0 (to make the conserved
+    # quantity easier to read).
     v_offset = M1 * G * LC1 + M2 * G * (L1 + LC2)
     V = M1 * G * y1 + M2 * G * y2 + v_offset
     return T + V
 
 
 def simulate(t_end=10.0, dt=0.002):
-    """重力下の自由運動(初期姿勢から落下する振り子的な動き)。"""
+    """Free motion under gravity (pendulum-like fall from the initial pose)."""
     n = int(t_end / dt)
-    # 初期姿勢: 第1リンクを水平、第2リンクを90度曲げた状態から、
-    # 静止状態でリリース。あとは重力だけで二重振り子的に運動する。
+    # Initial pose: release from rest with the first link horizontal and the second
+    # link bent by 90 degrees. Thereafter it moves like a double pendulum under
+    # gravity alone.
     state = np.array([0.0, np.pi / 2.0, 0.0, 0.0])
 
     t_hist  = np.zeros(n)
@@ -149,28 +159,31 @@ def simulate(t_end=10.0, dt=0.002):
 
 def main():
     print("=" * 66)
-    print(" 2リンクロボットアーム ― ラグランジュ法シミュレーション(対比用)")
+    print(" 2-link robot arm - Lagrangian simulation (for contrast)")
     print("=" * 66)
     print()
-    print(" 本体の輸送機関モデルが Newton-Euler 形式なのに対し、ロボット")
-    print(" アームではラグランジュ法が素直になる。その実例として、重力下で")
-    print(" 自由運動する2リンクアームを M(q)q̈ + Cq̇ + g = τ から解く。")
+    print(" Whereas the main vehicle models use the Newton-Euler form, the")
+    print(" Lagrangian method is more natural for a robot arm. As a concrete")
+    print(" example, we solve a 2-link arm in free motion under gravity from")
+    print(" M(q)q̈ + Cq̇ + g = τ.")
     print()
 
     t, q, e = simulate()
 
-    # 全エネルギーの変動幅を、系が保持するエネルギーの平均値に対する
-    # 相対比で示す。駆動トルク0かつ重力(保存力)のみなので、理論上は
-    # 一定 ── 変動は RK4 の数値誤差ぶんだけ。
+    # Express the fluctuation range of the total energy as a relative ratio to the
+    # mean energy held by the system. Since the drive torque is zero and only
+    # gravity (a conservative force) acts, it is theoretically constant -- the
+    # fluctuation is just the numerical error of RK4.
     e_drift = e.max() - e.min()
     e_mean = float(np.mean(e))
-    print(f" シミュレーション時間 : {t[-1]:.1f} s ({len(t)} ステップ)")
-    print(f" 全エネルギー(平均)  : {e_mean:.4f} J")
-    print(f" エネルギー変動幅     : {e_drift:.3e} J "
-          f"(平均値の {e_drift / e_mean * 100:.4f} %)")
-    print("   → 駆動トルク0かつ重力は保存力なので、全エネルギーは理論上")
-    print("      一定。変動は RK4 の数値誤差ぶんだけで、ごく僅か。これは")
-    print("      ラグランジュ形式が保存系を素直に扱えることの確認でもある。")
+    print(f" Simulation time      : {t[-1]:.1f} s ({len(t)} steps)")
+    print(f" Total energy (mean)   : {e_mean:.4f} J")
+    print(f" Energy fluctuation    : {e_drift:.3e} J "
+          f"({e_drift / e_mean * 100:.4f} % of the mean)")
+    print("   -> Since the drive torque is zero and gravity is conservative, the")
+    print("      total energy is theoretically constant. The fluctuation is only")
+    print("      the numerical error of RK4, which is tiny. This also confirms that")
+    print("      the Lagrangian form handles conservative systems cleanly.")
     print()
 
     out_dir = os.path.dirname(os.path.abspath(__file__))
@@ -194,7 +207,7 @@ def main():
 
     fig.tight_layout()
     fig.savefig(os.path.abspath(out_path), dpi=120)
-    print(f" グラフを保存しました: {os.path.abspath(out_path)}")
+    print(f" Saved plot: {os.path.abspath(out_path)}")
 
 
 if __name__ == "__main__":

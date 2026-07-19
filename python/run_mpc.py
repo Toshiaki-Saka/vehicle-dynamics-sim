@@ -1,8 +1,9 @@
 """
-MPC 経路追従シミュレーション (Python に残す部分)
+MPC path-tracking simulation (the part kept in Python)
 ==============================================
-scipy.optimize.minimize (SLSQP) を用いる制約付き最適制御。
-C++ 側で実装すると外部 QP ソルバが必要になるため Python に残す。
+Constrained optimal control using scipy.optimize.minimize (SLSQP).
+Implementing this on the C++ side would require an external QP solver, so it is
+kept in Python.
 """
 
 import sys
@@ -11,7 +12,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 
-# ── 楕円経路生成(C++ 側と同一パラメータ) ────────────────────────
+# ── Ellipse path generation (same parameters as the C++ side) ────────────────
 def _make_ellipse_path(a=50.0, b=30.0, n=400):
     t = np.linspace(0, 2 * np.pi, n, endpoint=False)
     path_xy = np.column_stack([a * np.cos(t), b * np.sin(t)])
@@ -28,7 +29,7 @@ def _evaluate_rms(states, path_xy):
     return float(np.sqrt(np.mean(np.array(errors) ** 2)))
 
 
-# ── MPC コントローラ ─────────────────────────────────────────────
+# ── MPC controller ───────────────────────────────────────────────
 class MPCPathTracker:
     def __init__(self, wheelbase=2.7, horizon=15, dt_ctrl=0.1,
                  delta_max=np.deg2rad(35), delta_rate_max=np.deg2rad(40)):
@@ -109,7 +110,7 @@ class MPCPathTracker:
         ]), delta_opt)
 
 
-# ── メインシミュレーション ────────────────────────────────────────
+# ── Main simulation ──────────────────────────────────────────────
 def run_mpc_simulation(horizon=15, dt_mpc=0.1, t_end=50.0,
                        v=8.0, n_path=400):
     path_xy, path_yaw = _make_ellipse_path(50.0, 30.0, n_path)

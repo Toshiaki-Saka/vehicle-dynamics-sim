@@ -26,12 +26,14 @@ cpp_results_ship_track.png
 mpc_results.json
 lagrangian_arm_result.png
 
-# The examples/ and docs/ copies are intentionally tracked; the
+# The examples/ and docs copies are intentionally tracked; the
 # patterns above only ignore freshly generated files in the repo root.
 !examples/results.json
 !examples/lqr_k.json
-!docs/cpp_results.png
-!docs/cpp_results_ship_track.png
+!docs_ja/cpp_results.png
+!docs_ja/cpp_results_ship_track.png
+!docs_en/cpp_results.png
+!docs_en/cpp_results_ship_track.png
 
 # ── Python ───────────────────────────────────────────────────────
 __pycache__/

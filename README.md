@@ -1,121 +1,130 @@
 # Vehicle Dynamics Simulation
 
-自動車・航空機・船舶の運動を、統一的な定式化でシミュレーションする教材プロジェクトです。
+*English | [日本語](README.ja.md)*
 
-このリポジトリの主題は、次の問いに「動くコード」で答えることです。
+An educational project that simulates the motion of cars, aircraft, and ships
+under a unified formulation.
 
-> ロボットアームの教科書は必ずラグランジュ方程式で運動方程式を立てる。
-> なのに、自動車・航空機・船舶の運動モデルはほとんど常に Newton-Euler
-> 形式で書かれている。なぜ違うのか?
+The theme of this repository is to answer the following question with running code:
 
-短い答えは「ラグランジュ形式が使えないのではなく、非ホロノミック拘束と
-非保存力が支配する輸送機関では Newton-Euler のほうが素直で、ラグランジュ
-形式の利点が活きないから」です。詳しい議論は以下のドキュメントを参照してください。
+> Robotics textbooks invariably derive a robot arm's equations of motion using
+> the Lagrangian formulation. Yet the motion models for cars, aircraft, and ships
+> are almost always written in Newton–Euler form. Why the difference?
 
-| ドキュメント | 内容 |
+The short answer is that it is not that the Lagrangian formulation *cannot* be
+used — it is that for vehicles governed by nonholonomic constraints and
+non-conservative forces, Newton–Euler is more direct and the advantages of the
+Lagrangian formulation do not pay off. See the documents below for the detailed
+discussion.
+
+| Document | Contents |
 |---|---|
-| [`docs/modeling_philosophy.md`](docs/modeling_philosophy.md) | **表現する対象に応じて適したモデリング手法がある** — 本プロジェクトの中心主張をまとめた導入ドキュメント |
-| [`docs/why_newton_euler.md`](docs/why_newton_euler.md) | なぜ車両モデルに Newton-Euler を使うのかの解説 |
-| [`docs/equation_selection_guide.md`](docs/equation_selection_guide.md) | **用途に応じた力学定式化の選び方（詳細版）** — ラグランジュ・Newton-Euler・Kane の使い分けを実際のシミュレーション結果とともに解説 |
+| [`docs_en/modeling_philosophy.md`](docs_en/modeling_philosophy.md) | **The right modeling method depends on what you are describing** — an introductory document summarizing the central claim of this project |
+| [`docs_en/why_newton_euler.md`](docs_en/why_newton_euler.md) | Why the vehicle models use Newton–Euler |
+| [`docs_en/equation_selection_guide.md`](docs_en/equation_selection_guide.md) | **Choosing a dynamics formulation for the task at hand (detailed)** — when to use Lagrangian, Newton–Euler, and Kane's method, illustrated with actual simulation results |
 
-本リポジトリの輸送機関モデルはすべて Newton-Euler 形式で書かれています。
-対比として、ラグランジュ法が自然な選択になる例(2リンクロボットアーム)も
-[`python/lagrangian_arm.py`](python/lagrangian_arm.py) に置いてあります。
+Japanese versions of these documents are in [`docs_ja/`](docs_ja/).
 
-## 含まれるシミュレーション
+All vehicle models in this repository are written in Newton–Euler form. For
+contrast, an example where the Lagrangian method is the natural choice (a
+two-link robot arm) is provided in
+[`python/lagrangian_arm.py`](python/lagrangian_arm.py).
 
-| # | モデル | 内容 |
+## Included simulations
+
+| # | Model | Contents |
 |---|---|---|
-| 1 | 自動車・経路追従 | Pure Pursuit / Stanley / LQR / MPC の制御則比較(楕円経路) |
-| 2 | 自動車・動力学 | 線形2自由度モデル。操舵ステップ応答とスタビリティファクタ |
-| 3 | 航空機・縦運動 | 4自由度線形モデル。短周期モードとフゴイドモードの固有値解析 |
-| 4 | 船舶・操船 | Nomoto 1次モデル + PD 制御による変針シミュレーション |
+| 1 | Car — path tracking | Comparison of Pure Pursuit / Stanley / LQR / MPC control laws (elliptical path) |
+| 2 | Car — dynamics | Linear 2-DOF model. Steering step response and stability factor |
+| 3 | Aircraft — longitudinal motion | Linear 4-DOF model. Eigenvalue analysis of the short-period and phugoid modes |
+| 4 | Ship — maneuvering | Course-change simulation with a first-order Nomoto model + PD control |
 
-実装は2系統あります。
+There are two implementations:
 
-- **C++ 版** — 高速。`src/` 以下。Eigen で線形代数、結果を JSON 出力。
-  制御則は Pure Pursuit / Stanley / LQR。
-- **Python 版** — 手軽でグラフ付き。`vehicle_dynamics_simulation.py`(理論解説を
-  豊富に含むスタンドアロン版)と、`python/` 以下の補助スクリプト群。
+- **C++ version** — fast. Under `src/`. Uses Eigen for linear algebra and
+  outputs results as JSON. Control laws: Pure Pursuit / Stanley / LQR.
+- **Python version** — convenient and produces plots. `vehicle_dynamics_simulation.py`
+  (a standalone version with extensive theoretical commentary) plus the helper
+  scripts under `python/`.
 
-MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
-(`python/run_mpc.py`)にのみ実装しています。C++ 版には含まれません。
+MPC uses constrained optimization (`scipy.optimize`), so it is implemented only
+in the Python version (`python/run_mpc.py`). It is not included in the C++ version.
 
-![C++ シミュレーション結果](docs/cpp_results.png)
+![C++ simulation results](docs_en/cpp_results.png)
 
-## ディレクトリ構成
+## Directory layout
 
 ```
 .
-├── CMakeLists.txt                  C++ ビルド設定
-├── build.sh / build.bat            ビルドスクリプト (Linux・macOS / Windows)
-├── build_and_run.ps1               ビルド〜実行〜可視化を一括実行 (Windows/PowerShell)
-├── requirements.txt                Python 依存ライブラリ
-├── src/                            C++ ソース (Newton-Euler 形式の各モデル)
+├── CMakeLists.txt                  C++ build configuration
+├── build.sh / build.bat            Build scripts (Linux/macOS / Windows)
+├── build_and_run.ps1               Build → run → visualize in one command (Windows/PowerShell)
+├── requirements.txt                Python dependencies
+├── src/                            C++ sources (each model in Newton–Euler form)
 ├── python/
-│   ├── compute_lqr_gain.py         LQR ゲインを CARE で計算し JSON 出力
-│   ├── run_mpc.py                  MPC 経路追従 (Python 専用)
-│   ├── gui_viewer.py               結果ビューア GUI (tkinter)
-│   └── lagrangian_arm.py           対比用: 2リンクアームのラグランジュ法シミュレーション
-├── vehicle_dynamics_simulation.py  Python スタンドアロン版 (理論解説つき)
-├── visualize_results.py            C++ の results.json をグラフ化
-├── docs/
-│   └── why_newton_euler.md         なぜ Newton-Euler 形式を使うのかの解説
+│   ├── compute_lqr_gain.py         Compute the LQR gain via CARE and emit JSON
+│   ├── run_mpc.py                  MPC path tracking (Python only)
+│   ├── gui_viewer.py               Results viewer GUI (tkinter)
+│   └── lagrangian_arm.py           For contrast: Lagrangian simulation of a two-link arm
+├── vehicle_dynamics_simulation.py  Standalone Python version (with theory)
+├── visualize_results.py            Plot the C++ results.json
+├── docs_en/                        English documentation (includes images)
+├── docs_ja/                        Japanese documentation
 ├── tests/
-│   ├── regression_test.cpp         C++ 数値回帰テスト (ctest 登録)
-│   └── test_param_consistency.py   C++/Python のパラメータ整合チェック
-└── examples/                       サンプル入出力 (lqr_k.json, results.json)
+│   ├── regression_test.cpp         C++ numerical regression test (registered with ctest)
+│   └── test_param_consistency.py   C++/Python parameter-consistency check
+└── examples/                       Sample input/output (lqr_k.json, results.json)
 ```
 
-## クイックスタート (Windows / PowerShell)
+## Quick start (Windows / PowerShell)
 
-ビルド・シミュレーション実行・グラフ化・アニメーション生成をまとめて行う
-`build_and_run.ps1` を用意しています。リポジトリのルートで実行してください。
+`build_and_run.ps1` performs the build, runs the simulation, plots the results,
+and generates the animation all at once. Run it from the repository root:
 
 ```powershell
 .\build_and_run.ps1
 ```
 
-実行される処理:
+What it does:
 
-1. C++ プロジェクトのビルド(CMake configure + build)
-2. LQR ゲインの事前計算(`python/compute_lqr_gain.py`)
-3. C++ シミュレーションの実行(`results.json` を出力)
-4. 結果のグラフ化(`cpp_results.png` ほか)
-5. アニメーション GIF の生成(`animation_demo.gif`)
+1. Build the C++ project (CMake configure + build)
+2. Precompute the LQR gain (`python/compute_lqr_gain.py`)
+3. Run the C++ simulation (writes `results.json`)
+4. Plot the results (`cpp_results.png` and others)
+5. Generate the animation GIF (`animation_demo.gif`)
 
-Python が見つからない場合、Python を使うステップ(2・4・5)は自動でスキップされます。
-主なオプション:
+If Python is not found, the Python-based steps (2, 4, 5) are skipped automatically.
+Common options:
 
 ```powershell
-.\build_and_run.ps1 -SkipBuild        # ビルド済みなら再ビルドを省略
-.\build_and_run.ps1 -SkipAnimation    # アニメーション生成を省略(時間短縮)
-.\build_and_run.ps1 -Python python3   # 使用する Python コマンドを指定
+.\build_and_run.ps1 -SkipBuild        # skip rebuilding if already built
+.\build_and_run.ps1 -SkipAnimation    # skip the animation (faster)
+.\build_and_run.ps1 -Python python3   # choose the Python command to use
 ```
 
-> PowerShell の実行ポリシーでスクリプトがブロックされる場合は、次のように実行できます。
+> If PowerShell's execution policy blocks the script, you can run it like this:
 > `powershell -ExecutionPolicy Bypass -File .\build_and_run.ps1`
 
-個別のステップを手動で実行したい場合や Linux / macOS の手順は、以下を参照してください。
+To run the individual steps manually, or for the Linux / macOS procedure, see below.
 
-## 使い方
+## Usage
 
-### 方法 1: Python 版(手軽・グラフ付き、初めての方におすすめ)
+### Option 1: Python version (easy, with plots — recommended for first-timers)
 
 ```bash
 pip install -r requirements.txt
 python vehicle_dynamics_simulation.py
 ```
 
-コンソールに理論解説と結果が出力され、`vehicle_dynamics_results.png` と
-`vehicle_dynamics_ship_track.png` が生成されます。
+Theory and results are printed to the console, and `vehicle_dynamics_results.png`
+and `vehicle_dynamics_ship_track.png` are generated.
 
-### 方法 2: C++ 版(高速・JSON 出力)
+### Option 2: C++ version (fast, JSON output)
 
-**ビルド** — CMake 3.20 以上と C++20 対応コンパイラが必要です。
-依存ライブラリ(Eigen 3.4.0、nlohmann/json 3.11.3)は CMake の
-FetchContent が自動取得します。**初回ビルドはこのダウンロードのため
-数分かかります**(ネットワーク環境に依存)。
+**Build** — requires CMake 3.20+ and a C++20-capable compiler. The dependencies
+(Eigen 3.4.0, nlohmann/json 3.11.3) are fetched automatically by CMake's
+FetchContent. **The first build takes a few minutes because of this download**
+(depending on your network).
 
 ```bash
 # Linux / macOS
@@ -125,103 +134,107 @@ FetchContent が自動取得します。**初回ビルドはこのダウンロ�
 build.bat
 ```
 
-**LQR ゲインの事前計算**(任意)— LQR 制御則は連続時間 Riccati 方程式の解を
-必要とします。これを Python(`scipy`)で計算して JSON で渡します。
+**Precompute the LQR gain** (optional) — the LQR control law requires the
+solution of the continuous-time Riccati equation. This is computed in Python
+(`scipy`) and passed in as JSON.
 
 ```bash
-python python/compute_lqr_gain.py        # lqr_k.json を生成
+python python/compute_lqr_gain.py        # generates lqr_k.json
 ```
 
-省略した場合、C++ 版は LQR にゼロゲインを使い、警告を表示します。
+If omitted, the C++ version uses a zero gain for LQR and prints a warning.
 
-**実行** —
+**Run** —
 
 ```bash
 # Linux / macOS
-./build/vehicle_dynamics                       # 既定: lqr_k.json を読み, results.json を出力
-./build/vehicle_dynamics lqr_k.json out.json   # 入出力パスを指定
+./build/vehicle_dynamics                       # default: reads lqr_k.json, writes results.json
+./build/vehicle_dynamics lqr_k.json out.json   # specify input/output paths
 
 # Windows
 build\Release\vehicle_dynamics.exe
 ```
 
-ビルドジェネレータによって実行ファイルのパスが異なります。
-Makefile 系(Linux・macOS の既定)では `build/vehicle_dynamics`、
-MSVC では `build/Release/vehicle_dynamics.exe` です。
+The executable path depends on the build generator: `build/vehicle_dynamics`
+for Makefile-based generators (the default on Linux/macOS), and
+`build/Release/vehicle_dynamics.exe` for MSVC.
 
-**結果の可視化** —
+**Visualize the results** —
 
 ```bash
-python visualize_results.py results.json      # cpp_results*.png を生成
+python visualize_results.py results.json      # generates cpp_results*.png
 ```
 
-### 結果ビューア GUI(任意)
+### Results viewer GUI (optional)
 
-C++ と Python の結果を統合表示する GUI です。tkinter(Python 標準ライブラリ)を
-使います。一部の Linux ディストリビューションでは `python3-tk` の別途インストールが
-必要です。
+A GUI that displays the C++ and Python results together. It uses tkinter (part
+of the Python standard library). On some Linux distributions you need to install
+`python3-tk` separately.
 
 ```bash
 python python/gui_viewer.py
 ```
 
-### 対比用: ラグランジュ法の例
+### For contrast: the Lagrangian example
 
 ```bash
 python python/lagrangian_arm.py
 ```
 
-2リンクロボットアームの運動方程式を $M(q)\ddot{q} + C(q,\dot{q})\dot{q} + g(q) = \tau$ の形で
-ラグランジュ法から立て、重力下の自由運動をシミュレーションします。
-駆動トルクなしでは全エネルギーが保存されること(数値誤差レベル)も確認でき、
-本体の Newton-Euler モデルとの対比になります。
+This derives the equations of motion of a two-link robot arm in the form
+$M(q)\ddot{q} + C(q,\dot{q})\dot{q} + g(q) = \tau$ using the Lagrangian method and
+simulates its free motion under gravity. With no drive torque you can confirm
+that total energy is conserved (to numerical-error level), providing a contrast
+to the Newton–Euler models in the main project.
 
-## テスト
+## Tests
 
-数値回帰とパラメータ整合を CI(GitHub Actions)で検証しています。
+Numerical regression and parameter consistency are verified in CI (GitHub Actions).
 
-| テスト | 内容 |
+| Test | Contents |
 |---|---|
-| [`tests/regression_test.cpp`](tests/regression_test.cpp) (ctest) | C++ の主要数値(追従 RMS、スタビリティファクタ Kv、航空機の短周期/フゴイド固有値、船舶の整定時間)を既知ベースラインに固定。逸脱で非0終了 |
-| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | C++ 版と Python 版が**同一のシナリオ定数**を使っていることをソースレベルで検証(ズレ検知・ビルド不要) |
+| [`tests/regression_test.cpp`](tests/regression_test.cpp) (ctest) | Pins the key C++ numbers (tracking RMS, stability factor Kv, aircraft short-period/phugoid eigenvalues, ship settling time) to known baselines. Exits non-zero on deviation |
+| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | Verifies at the source level that the C++ and Python versions use the **same scenario constants** (drift detection; no build required) |
 
 ```bash
-# C++ 回帰テスト(ビルド後)
+# C++ regression test (after building)
 ctest --test-dir build -C Release --output-on-failure
 
-# パラメータ整合(ビルド不要)
+# Parameter consistency (no build required)
 python tests/test_param_consistency.py
 ```
 
-### 共有シナリオ定数
+### Shared scenario constants
 
-C++ 版と Python 版は次の定数を共有します。**片方だけ変更すると両系統の結果が
-ズレる**ため、上の `test_param_consistency.py` が同一性を監視しています。
+The C++ and Python versions share the following constants. **Changing only one
+side makes the two implementations' results diverge**, so `test_param_consistency.py`
+above monitors that they stay identical.
 
-| 定数 | 値 |
+| Constant | Value |
 |---|---|
-| 楕円経路 (a, b, 分割数) | 50 m, 30 m, 400 |
-| 初期状態 (x, y, ψ) | (50 m, 2 m, π/2) |
-| 速度 v / 時間刻み dt | 8.0 m/s / 0.05 s |
-| ホイールベース | 2.7 m |
+| Elliptical path (a, b, segments) | 50 m, 30 m, 400 |
+| Initial state (x, y, ψ) | (50 m, 2 m, π/2) |
+| Speed v / time step dt | 8.0 m/s / 0.05 s |
+| Wheelbase | 2.7 m |
 
-## 動作環境
+## Requirements
 
-- C++20 対応コンパイラ(GCC 10+ / Clang 12+ / MSVC 2019+ など)
-- CMake 3.20 以上
-- Python 3.8 以上(`numpy`, `scipy`, `matplotlib`、GUI には `tkinter`)
+- A C++20-capable compiler (GCC 10+ / Clang 12+ / MSVC 2019+, etc.)
+- CMake 3.20+
+- Python 3.8+ (`numpy`, `scipy`, `matplotlib`; `tkinter` for the GUI)
 
-## ライセンス
+## License
 
-本プロジェクトは MIT License です([`LICENSE`](LICENSE) 参照)。
+This project is under the MIT License (see [`LICENSE`](LICENSE)).
 
-C++ 版はビルド時に以下のライブラリを取得します。これらはこのリポジトリには
-同梱されませんが、ビルドした成果物にはそれぞれのライセンスが適用されます。
+The C++ version fetches the following libraries at build time. They are not
+bundled in this repository, but their respective licenses apply to any artifacts
+you build.
 
 - [Eigen](https://gitlab.com/libeigen/eigen) 3.4.0 — Mozilla Public License 2.0
 - [nlohmann/json](https://github.com/nlohmann/json) 3.11.3 — MIT License
 
-## 参考文献
+## References
 
 - R. Rajamani, *Vehicle Dynamics and Control*, Springer.
 - B. Etkin and L. D. Reid, *Dynamics of Flight: Stability and Control*, Wiley.

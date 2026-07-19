@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "=== Vehicle Dynamics Simulation (C++20) ===\n\n";
 
-    // ── LQR ゲイン読み込み ────────────────────────────────────────
+    // ── Load LQR gain ─────────────────────────────────────────────
     Eigen::Matrix<double, 1, 4> K = Eigen::Matrix<double, 1, 4>::Zero();
     {
         std::ifstream f(lqr_path);
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // ── 1. 自動車 経路追従 ────────────────────────────────────────
+    // ── 1. Car path tracking ──────────────────────────────────────
     std::cout << "[1/4] Car path tracking (Pure Pursuit / Stanley / LQR)...\n";
     auto path = make_ellipse_path(50.0, 30.0, 400);
     State3D init{50.0, 2.0, std::numbers::pi / 2.0};
@@ -69,16 +69,16 @@ int main(int argc, char* argv[]) {
     std::cout << "  LQR          : RMS=" << lqr.rms_error
               << " m, max steer=" << lqr.max_steer_deg << " deg\n\n";
 
-    // ── 2. 自動車 動力学 ──────────────────────────────────────────
+    // ── 2. Car dynamics ───────────────────────────────────────────
     std::cout << "[2/4] Car dynamic 2-DOF (step response)...\n";
     auto car_dyn = simulate_car_dynamic();
-    std::string us_str = car_dyn.Kv > 0 ? "アンダーステア"
-                        : car_dyn.Kv < 0 ? "オーバーステア" : "ニュートラル";
+    std::string us_str = car_dyn.Kv > 0 ? "understeer"
+                        : car_dyn.Kv < 0 ? "oversteer" : "neutral";
     std::cout << "  Kv=" << car_dyn.Kv << " (" << us_str << ")\n";
     std::cout << "  Yaw gain: theory=" << car_dyn.yaw_gain_theory
               << "  sim=" << car_dyn.yaw_gain_sim << "\n\n";
 
-    // ── 3. 航空機 縦運動 ──────────────────────────────────────────
+    // ── 3. Aircraft longitudinal motion ───────────────────────────
     std::cout << "[3/4] Aircraft longitudinal model...\n";
     auto aircraft = simulate_aircraft_longitudinal();
     std::cout << "  Eigenvalues (complex pairs):\n";
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n";
 
-    // ── 4. 船舶 Nomoto ────────────────────────────────────────────
+    // ── 4. Ship Nomoto ────────────────────────────────────────────
     std::cout << "[4/4] Ship Nomoto model...\n";
     auto ship = simulate_ship_nomoto();
     if (ship.settle_time > 0)
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
     else
         std::cout << "  Did not settle within simulation time.\n\n";
 
-    // ── JSON 出力 ─────────────────────────────────────────────────
+    // ── JSON output ───────────────────────────────────────────────
     std::cout << "Writing results to " << output_path << "...\n";
     json out;
 

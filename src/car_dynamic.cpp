@@ -10,10 +10,10 @@ CarDynResult simulate_car_dynamic(
 {
     using std::numbers::pi;
 
-    // ── 状態空間モデル構築 ────────────────────────────────────────
-    // 状態 x = [v_y (横速度), ψ̇ (ヨーレート)]^T
-    // 入力 u = δ (操舵角) として線形化した Newton-Euler 方程式
-    // Rajamani "Vehicle Dynamics and Control" Ch.2 より
+    // ── State-space model construction ──────────────────────────
+    // State x = [v_y (lateral velocity), ψ̇ (yaw rate)]^T
+    // Newton-Euler equations linearized with input u = δ (steering angle)
+    // From Rajamani "Vehicle Dynamics and Control" Ch.2
     double a11 = -(Cf + Cr) / (m * vx);
     double a12 = -(vx + (lf * Cf - lr * Cr) / (m * vx));
     double a21 = -(lf * Cf - lr * Cr) / (Iz * vx);
@@ -26,12 +26,12 @@ CarDynResult simulate_car_dynamic(
 
     double delta = delta_step_deg * pi / 180.0;
 
-    // ẋ = Ax + B·δ (定常ステップ入力)
+    // ẋ = Ax + B·δ (constant step input)
     OdeFunc<2> f = [&](const Eigen::Vector2d& x) -> Eigen::Vector2d {
         return A * x + B * delta;
     };
 
-    // 時間ベクトル
+    // Time vector
     std::vector<double> t(n_steps);
     for (int i = 0; i < n_steps; ++i)
         t[i] = t_end * i / (n_steps - 1);
@@ -50,7 +50,7 @@ CarDynResult simulate_car_dynamic(
         res.yaw_rate.push_back(states[i](1));
     }
 
-    // スタビリティファクタと定常ヨーゲイン
+    // Stability factor and steady-state yaw gain
     double L = lf + lr;
     res.Kv = (lr * m) / (2.0 * L * Cf) - (lf * m) / (2.0 * L * Cr);
     res.yaw_gain_theory = vx / (L * (1.0 + res.Kv * vx * vx));

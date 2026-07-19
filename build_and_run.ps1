@@ -1,25 +1,25 @@
 <#
 .SYNOPSIS
-    Vehicle Dynamics Simulation — ビルド・シミュレーション・アニメーションを一括実行
+    Vehicle Dynamics Simulation — build, simulate, and animate in one command
 
 .DESCRIPTION
-    以下を順に実行するクイックスタート用スクリプトです。
-      1. C++ プロジェクトのビルド (CMake configure + build)
-      2. LQR ゲインの事前計算              (python/compute_lqr_gain.py)
-      3. C++ シミュレーションの実行         (results.json 出力)
-      4. 結果のグラフ化                     (visualize_results.py)
-      5. アニメーション GIF の生成          (python/animation_demo.py)
+    A quick-start script that runs the following steps in order:
+      1. Build the C++ project        (CMake configure + build)
+      2. Precompute the LQR gain      (python/compute_lqr_gain.py)
+      3. Run the C++ simulation       (writes results.json)
+      4. Plot the results             (visualize_results.py)
+      5. Generate the animation GIF   (python/animation_demo.py)
 
-    Python を使うステップ (2, 4, 5) は Python が見つからない場合スキップします。
+    The Python-based steps (2, 4, 5) are skipped if Python is not found.
 
 .PARAMETER SkipBuild
-    C++ のビルドを省略します (既にビルド済みの場合)。
+    Skip the C++ build (use when it is already built).
 
 .PARAMETER SkipAnimation
-    アニメーション GIF の生成を省略します (時間短縮)。
+    Skip generating the animation GIF (to save time).
 
 .PARAMETER Python
-    使用する Python 実行コマンド (既定: py があれば py、なければ python)。
+    The Python command to use (default: py if available, otherwise python).
 
 .EXAMPLE
     .\build_and_run.ps1
@@ -44,91 +44,91 @@ function Write-Step($n, $total, $msg) {
     Write-Host "==== [$n/$total] $msg ====" -ForegroundColor Cyan
 }
 
-# ── Python 実行コマンドの解決 ────────────────────────────────────────
+# ── Resolve the Python command ───────────────────────────────────────
 if (-not $Python) {
     if (Get-Command py     -ErrorAction SilentlyContinue) { $Python = 'py' }
     elseif (Get-Command python -ErrorAction SilentlyContinue) { $Python = 'python' }
 }
 $hasPython = [bool]$Python
 if (-not $hasPython) {
-    Write-Host "警告: Python が見つかりません。Python を使うステップはスキップします。" -ForegroundColor Yellow
+    Write-Host "Warning: Python not found. Python-based steps will be skipped." -ForegroundColor Yellow
 }
 
 $TOTAL = 5
 
-# ── [1/5] ビルド ─────────────────────────────────────────────────────
-Write-Step 1 $TOTAL "C++ ビルド (CMake)"
+# ── [1/5] Build ──────────────────────────────────────────────────────
+Write-Step 1 $TOTAL "C++ build (CMake)"
 if ($SkipBuild) {
-    Write-Host "  -SkipBuild 指定によりビルドをスキップします。"
+    Write-Host "  Skipping the build (-SkipBuild specified)."
 } else {
     if (-not (Test-Path $buildDir)) { New-Item -ItemType Directory -Path $buildDir | Out-Null }
-    Write-Host "  configure... (初回は Eigen / nlohmann-json のダウンロードで数分かかります)"
+    Write-Host "  configure... (the first run downloads Eigen / nlohmann-json and may take a few minutes)"
     cmake -S $scriptDir -B $buildDir -DCMAKE_BUILD_TYPE=Release
-    if ($LASTEXITCODE -ne 0) { throw "CMake configure に失敗しました。" }
+    if ($LASTEXITCODE -ne 0) { throw "CMake configure failed." }
     Write-Host "  build..."
     cmake --build $buildDir --config Release --parallel
-    if ($LASTEXITCODE -ne 0) { throw "ビルドに失敗しました。" }
+    if ($LASTEXITCODE -ne 0) { throw "Build failed." }
 }
 
-# 実行ファイルのパスを解決 (ジェネレータにより異なる)
+# Resolve the executable path (varies by generator)
 $exeCandidates = @(
     (Join-Path $buildDir 'Release\vehicle_dynamics.exe'),
     (Join-Path $buildDir 'vehicle_dynamics.exe'),
     (Join-Path $buildDir 'vehicle_dynamics')
 )
 $exe = $exeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $exe) { throw "実行ファイルが見つかりません。ビルドが完了しているか確認してください。" }
+if (-not $exe) { throw "Executable not found. Check that the build completed successfully." }
 
-# ── [2/5] LQR ゲインの事前計算 ──────────────────────────────────────
-Write-Step 2 $TOTAL "LQR ゲイン計算 (compute_lqr_gain.py)"
+# ── [2/5] Precompute the LQR gain ────────────────────────────────────
+Write-Step 2 $TOTAL "LQR gain computation (compute_lqr_gain.py)"
 if ($hasPython) {
     & $Python (Join-Path $scriptDir 'python\compute_lqr_gain.py')
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  警告: LQR ゲイン計算に失敗しました。C++ 版はゼロゲインで続行します。" -ForegroundColor Yellow
+        Write-Host "  Warning: LQR gain computation failed. The C++ build continues with zero gain." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  Python 無しのためスキップ (C++ 版はゼロゲインで続行します)。"
+    Write-Host "  Skipped (no Python; the C++ build continues with zero gain)."
 }
 
-# ── [3/5] シミュレーション実行 ──────────────────────────────────────
-Write-Step 3 $TOTAL "シミュレーション実行"
+# ── [3/5] Run the simulation ─────────────────────────────────────────
+Write-Step 3 $TOTAL "Run the simulation"
 Write-Host "  $exe"
 & $exe
-if ($LASTEXITCODE -ne 0) { throw "シミュレーションの実行に失敗しました。" }
+if ($LASTEXITCODE -ne 0) { throw "The simulation failed to run." }
 
-# ── [4/5] 結果のグラフ化 ────────────────────────────────────────────
-Write-Step 4 $TOTAL "結果のグラフ化 (visualize_results.py)"
+# ── [4/5] Plot the results ───────────────────────────────────────────
+Write-Step 4 $TOTAL "Plot the results (visualize_results.py)"
 $resultsJson = Join-Path $scriptDir 'results.json'
 if ($hasPython) {
     if (Test-Path $resultsJson) {
         & $Python (Join-Path $scriptDir 'visualize_results.py') $resultsJson
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  警告: グラフ化に失敗しました。" -ForegroundColor Yellow
+            Write-Host "  Warning: plotting failed." -ForegroundColor Yellow
         }
     } else {
-        Write-Host "  results.json が見つかりません。スキップします。" -ForegroundColor Yellow
+        Write-Host "  results.json not found. Skipping." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  Python 無しのためスキップ。"
+    Write-Host "  Skipped (no Python)."
 }
 
-# ── [5/5] アニメーション生成 ────────────────────────────────────────
-Write-Step 5 $TOTAL "アニメーション生成 (animation_demo.py)"
+# ── [5/5] Generate the animation ─────────────────────────────────────
+Write-Step 5 $TOTAL "Generate the animation (animation_demo.py)"
 if ($SkipAnimation) {
-    Write-Host "  -SkipAnimation 指定によりスキップします。"
+    Write-Host "  Skipping (-SkipAnimation specified)."
 } elseif ($hasPython) {
     & $Python (Join-Path $scriptDir 'python\animation_demo.py')
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  警告: アニメーション生成に失敗しました (Pillow が必要です)。" -ForegroundColor Yellow
+        Write-Host "  Warning: animation generation failed (Pillow is required)." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  Python 無しのためスキップ。"
+    Write-Host "  Skipped (no Python)."
 }
 
-# ── 完了 ─────────────────────────────────────────────────────────────
+# ── Done ─────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "==== 完了 ====" -ForegroundColor Green
-Write-Host "生成物 (プロジェクトルート):"
+Write-Host "==== Done ====" -ForegroundColor Green
+Write-Host "Generated files (project root):"
 foreach ($f in @('results.json', 'cpp_results.png', 'cpp_results_ship_track.png', 'animation_demo.gif')) {
     $p = Join-Path $scriptDir $f
     if (Test-Path $p) { Write-Host ("  {0}" -f $f) -ForegroundColor Green }

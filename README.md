@@ -225,7 +225,7 @@ above monitors that they stay identical.
 
 ## License
 
-This project is under the MIT License (see [`LICENSE`](LICENSE)).
+This project is under the Apache License 2.0 (see [`LICENSE`](LICENSE)).
 
 The C++ version fetches the following libraries at build time. They are not
 bundled in this repository, but their respective licenses apply to any artifacts

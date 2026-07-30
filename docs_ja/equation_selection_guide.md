@@ -239,11 +239,13 @@ Newton-Euler の方が設計の流れが自然です。
 
 低速で横滑りがない前提では、自動車を3つの状態方程式で記述できます:
 
-$$\begin{align}
+```math
+\begin{align}
 \dot{x} &= v\cos\psi \\
 \dot{y} &= v\sin\psi \\
 \dot{\psi} &= \frac{v}{L}\tan\delta \quad \text{← Ackermann 幾何}
-\end{align}$$
+\end{align}
+```
 
 $L$ はホイールベース、 $\delta$ は前輪操舵角です。
 第3式は左右前輪が共通の旋回中心を持つ Ackermann 条件から直接導かれます。
@@ -254,10 +256,12 @@ $L$ はホイールベース、 $\delta$ は前輪操舵角です。
 高速域ではタイヤがスリップ角 $\alpha$ を取り、横力 $F_y = -C_\alpha\alpha$ を発生します。
 Newton-Euler を線形化すると:
 
-$$\begin{align}
+```math
+\begin{align}
 m(\dot{v}_y + v_x\dot{\psi}) &= F_{yf}\cos\delta + F_{yr} & \text{(横方向の力の釣り合い)} \\
 I_z\ddot{\psi} &= \ell_f F_{yf}\cos\delta - \ell_r F_{yr} & \text{(ヨーモーメントの釣り合い)}
-\end{align}$$
+\end{align}
+```
 
 状態 $\mathbf{x} = (v_y,\, \dot{\psi})^T$、入力 $u = \delta$ の **線形時不変系 $\dot{x} = Ax + Bu$** になります。
 この形式が Rajamani 教科書 Ch.2 の標準形で、ESC・LKAS 設計の基礎です。
@@ -289,17 +293,21 @@ ESC はこの「意図ヨーレート」と実ヨーレートの差を見て
 非ホロノミック拘束は存在しません。代わりに
 機体座標系の完全な Newton-Euler 方程式が必要です:
 
-$$\begin{align}
+```math
+\begin{align}
 m(\dot{u} + qw - rv) &= F_x - mg\sin\theta & \text{(ピッチ軸周りのコリオリ項を含む)} \\
 m(\dot{v} + ru - pw) &= F_y + mg\cos\theta\sin\phi \\
 m(\dot{w} + pv - qu) &= F_z + mg\cos\theta\cos\phi
-\end{align}$$
+\end{align}
+```
 
-$$\begin{align}
+```math
+\begin{align}
 I_x\dot{p} - (I_y - I_z)qr &= L & \text{(ロール: エルロン $\delta_a$ で制御)} \\
 I_y\dot{q} - (I_z - I_x)rp &= M & \text{(ピッチ: エレベータ $\delta_e$ で制御)} \\
 I_z\dot{r} - (I_x - I_y)pq &= N & \text{(ヨー: ラダー $\delta_r$ で制御)}
-\end{align}$$
+\end{align}
+```
 
 外力・モーメントは空気力で決まります:
 

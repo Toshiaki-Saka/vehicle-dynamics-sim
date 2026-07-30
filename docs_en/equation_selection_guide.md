@@ -238,11 +238,13 @@ such as CarSim.
 
 Under the assumption of no side-slip at low speed, an automobile can be described by three state equations:
 
-$$\begin{align}
+```math
+\begin{align}
 \dot{x} &= v\cos\psi \\
 \dot{y} &= v\sin\psi \\
 \dot{\psi} &= \frac{v}{L}\tan\delta \quad \text{← Ackermann geometry}
-\end{align}$$
+\end{align}
+```
 
 $L$ is the wheelbase and $\delta$ is the front-wheel steering angle.
 The third equation is derived directly from the Ackermann condition, in which the left and right front wheels
@@ -253,10 +255,12 @@ share a common turning center. This simple form becomes the foundation of all of
 In the high-speed regime the tire takes a slip angle $\alpha$ and generates a lateral force $F_y = -C_\alpha\alpha$.
 Linearizing Newton–Euler:
 
-$$\begin{align}
+```math
+\begin{align}
 m(\dot{v}_y + v_x\dot{\psi}) &= F_{yf}\cos\delta + F_{yr} & \text{(lateral force balance)} \\
 I_z\ddot{\psi} &= \ell_f F_{yf}\cos\delta - \ell_r F_{yr} & \text{(yaw moment balance)}
-\end{align}$$
+\end{align}
+```
 
 With state $\mathbf{x} = (v_y,\, \dot{\psi})^T$ and input $u = \delta$, it becomes a **linear time-invariant system $\dot{x} = Ax + Bu$**.
 This form is the standard form of Rajamani's textbook Ch.2 and is the basis of ESC and LKAS design.
@@ -288,17 +292,21 @@ Since an aircraft undergoes free-space motion with no ground constraint,
 no nonholonomic constraint exists. Instead, the complete Newton–Euler equations
 in the body coordinate frame are required:
 
-$$\begin{align}
+```math
+\begin{align}
 m(\dot{u} + qw - rv) &= F_x - mg\sin\theta & \text{(including the Coriolis term about the pitch axis)} \\
 m(\dot{v} + ru - pw) &= F_y + mg\cos\theta\sin\phi \\
 m(\dot{w} + pv - qu) &= F_z + mg\cos\theta\cos\phi
-\end{align}$$
+\end{align}
+```
 
-$$\begin{align}
+```math
+\begin{align}
 I_x\dot{p} - (I_y - I_z)qr &= L & \text{(roll: controlled by aileron $\delta_a$)} \\
 I_y\dot{q} - (I_z - I_x)rp &= M & \text{(pitch: controlled by elevator $\delta_e$)} \\
 I_z\dot{r} - (I_x - I_y)pq &= N & \text{(yaw: controlled by rudder $\delta_r$)}
-\end{align}$$
+\end{align}
+```
 
 The external forces and moments are determined by aerodynamic forces:
 

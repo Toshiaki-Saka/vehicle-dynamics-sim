@@ -245,7 +245,7 @@ $$\begin{align}
 \dot{\psi} &= \frac{v}{L}\tan\delta \quad \text{← Ackermann 幾何}
 \end{align}$$
 
-$L$ はホイールベース、$\delta$ は前輪操舵角です。
+$L$ はホイールベース、 $\delta$ は前輪操舵角です。
 第3式は左右前輪が共通の旋回中心を持つ Ackermann 条件から直接導かれます。
 この単純な形式が **Pure Pursuit・Stanley・LQR・MPC** 全ての基盤になります。
 
@@ -389,7 +389,7 @@ $$M\dot{\nu} + C(\nu)\nu + D(\nu)\nu + g(\eta) = \tau + \tau_{\text{wind}} + \ta
 
 $$T\ddot{\psi} + \dot{\psi} = K\delta$$
 
-ここで $T = 50\,\text{秒}$（本デモの中型コンテナ船）、$K = 0.18$（舵効きゲイン）。
+ここで $T = 50\,\text{秒}$（本デモの中型コンテナ船）、 $K = 0.18$（舵効きゲイン）。
 
 ### シミュレーション結果
 
@@ -424,7 +424,7 @@ $$T\ddot{\psi} + \dot{\psi} = K\delta$$
 
 | 系 | 使うべき定式化 | 反対の定式化を使うと |
 |---|---|---|
-| ロボットアーム | ラグランジュ（$M(q)\ddot{q} + C\dot{q} + g = \tau$） | Newton-Euler では力の向きを座標変換で追跡する手間 |
+| ロボットアーム | ラグランジュ（$`M(q)\ddot{q} + C\dot{q} + g = \tau`$） | Newton-Euler では力の向きを座標変換で追跡する手間 |
 | 自動車 | Newton-Euler（状態方程式直結） | ラグランジュでは未定乗数が必要 |
 | 航空機 | Newton-Euler（モード解析） | ラグランジュでは回転項の整理に手間がかかる |
 | 船舶 | Newton-Euler + Fossen 形式 | ラグランジュでは付加質量の扱いが複雑 |

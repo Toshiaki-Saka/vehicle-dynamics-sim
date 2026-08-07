@@ -262,7 +262,7 @@ I_z\ddot{\psi} &= \ell_f F_{yf}\cos\delta - \ell_r F_{yr} & \text{(yaw moment ba
 \end{align}
 ```
 
-With state $\mathbf{x} = (v_y,\, \dot{\psi})^T$ and input $u = \delta$, it becomes a **linear time-invariant system $\dot{x} = Ax + Bu$**.
+With state $\mathbf{x} = (v_y, \dot{\psi})^T$ and input $u = \delta$, it becomes a **linear time-invariant system $\dot{x} = Ax + Bu$**.
 This form is the standard form of Rajamani's textbook Ch.2 and is the basis of ESC and LKAS design.
 
 ### Simulation results
@@ -302,15 +302,17 @@ m(\dot{w} + pv - qu) &= F_z + mg\cos\theta\cos\phi
 
 ```math
 \begin{align}
-I_x\dot{p} - (I_y - I_z)qr &= L & \text{(roll: controlled by aileron $\delta_a$)} \\
-I_y\dot{q} - (I_z - I_x)rp &= M & \text{(pitch: controlled by elevator $\delta_e$)} \\
-I_z\dot{r} - (I_x - I_y)pq &= N & \text{(yaw: controlled by rudder $\delta_r$)}
+I_x\dot{p} - (I_y - I_z)qr &= L & \text{(roll: controlled by aileron }\delta_a\text{)} \\
+I_y\dot{q} - (I_z - I_x)rp &= M & \text{(pitch: controlled by elevator }\delta_e\text{)} \\
+I_z\dot{r} - (I_x - I_y)pq &= N & \text{(yaw: controlled by rudder }\delta_r\text{)}
 \end{align}
 ```
 
 The external forces and moments are determined by aerodynamic forces:
 
-$$F = \frac{1}{2}\rho V^2 S \cdot C_*(\alpha,\, \beta,\, q,\, \delta_a,\, \delta_e,\, \delta_r,\, \ldots)$$
+```math
+F = \frac{1}{2}\rho V^2 S \cdot C_*(\alpha,\, \beta,\, q,\, \delta_a,\, \delta_e,\, \delta_r,\, \ldots)
+```
 
 ### Separation of longitudinal and lateral motion
 
@@ -380,8 +382,8 @@ $$M\dot{\nu} + C(\nu)\nu + D(\nu)\nu + g(\eta) = \tau + \tau_{\text{wind}} + \ta
 
 where each variable is:
 
-- $\eta$ : position and attitude in the inertial frame $(x,\, y,\, z,\, \phi,\, \theta,\, \psi)^T$
-- $\nu$ : velocity and angular velocity in the body frame $(u,\, v,\, w,\, p,\, q,\, r)^T$
+- $\eta$ : position and attitude in the inertial frame $(x, y, z, \phi, \theta, \psi)^T$
+- $\nu$ : velocity and angular velocity in the body frame $(u, v, w, p, q, r)^T$
 - $M = M_{RB} + M_A$ : rigid-body inertia + added mass
 - $D(\nu)$ : fluid drag (linear + quadratic terms)
 - $g(\eta)$ : restoring forces and moments
@@ -396,7 +398,7 @@ For course control, Nomoto's simplified model is widely used:
 
 $$T\ddot{\psi} + \dot{\psi} = K\delta$$
 
-where $T = 50\,\text{s}$ (the mid-size container ship of this demo) and $K = 0.18$ (the rudder-effectiveness gain).
+where $T = 50$ s (the mid-size container ship of this demo) and $K = 0.18$ (the rudder-effectiveness gain).
 
 ### Simulation results
 

@@ -263,7 +263,7 @@ I_z\ddot{\psi} &= \ell_f F_{yf}\cos\delta - \ell_r F_{yr} & \text{(ヨーモー�
 \end{align}
 ```
 
-状態 $\mathbf{x} = (v_y,\, \dot{\psi})^T$、入力 $u = \delta$ の **線形時不変系 $\dot{x} = Ax + Bu$** になります。
+状態 $\mathbf{x} = (v_y, \dot{\psi})^T$、入力 $u = \delta$ の **線形時不変系 $\dot{x} = Ax + Bu$** になります。
 この形式が Rajamani 教科書 Ch.2 の標準形で、ESC・LKAS 設計の基礎です。
 
 ### シミュレーション結果
@@ -303,15 +303,17 @@ m(\dot{w} + pv - qu) &= F_z + mg\cos\theta\cos\phi
 
 ```math
 \begin{align}
-I_x\dot{p} - (I_y - I_z)qr &= L & \text{(ロール: エルロン $\delta_a$ で制御)} \\
-I_y\dot{q} - (I_z - I_x)rp &= M & \text{(ピッチ: エレベータ $\delta_e$ で制御)} \\
-I_z\dot{r} - (I_x - I_y)pq &= N & \text{(ヨー: ラダー $\delta_r$ で制御)}
+I_x\dot{p} - (I_y - I_z)qr &= L & \text{(ロール: エルロン }\delta_a\text{ で制御)} \\
+I_y\dot{q} - (I_z - I_x)rp &= M & \text{(ピッチ: エレベータ }\delta_e\text{ で制御)} \\
+I_z\dot{r} - (I_x - I_y)pq &= N & \text{(ヨー: ラダー }\delta_r\text{ で制御)}
 \end{align}
 ```
 
 外力・モーメントは空気力で決まります:
 
-$$F = \frac{1}{2}\rho V^2 S \cdot C_*(\alpha,\, \beta,\, q,\, \delta_a,\, \delta_e,\, \delta_r,\, \ldots)$$
+```math
+F = \frac{1}{2}\rho V^2 S \cdot C_*(\alpha,\, \beta,\, q,\, \delta_a,\, \delta_e,\, \delta_r,\, \ldots)
+```
 
 ### 縦運動・横運動の分離
 
@@ -381,8 +383,8 @@ $$M\dot{\nu} + C(\nu)\nu + D(\nu)\nu + g(\eta) = \tau + \tau_{\text{wind}} + \ta
 
 ここで各変数は:
 
-- $\eta$ : 慣性系の位置・姿勢 $(x,\, y,\, z,\, \phi,\, \theta,\, \psi)^T$
-- $\nu$ : 船体座標系の速度・角速度 $(u,\, v,\, w,\, p,\, q,\, r)^T$
+- $\eta$ : 慣性系の位置・姿勢 $(x, y, z, \phi, \theta, \psi)^T$
+- $\nu$ : 船体座標系の速度・角速度 $(u, v, w, p, q, r)^T$
 - $M = M_{RB} + M_A$ : 剛体慣性 + 付加質量
 - $D(\nu)$ : 流体抗力（線形 + 二次項）
 - $g(\eta)$ : 復原力・モーメント
@@ -397,7 +399,7 @@ $$M\dot{\nu} + C(\nu)\nu + D(\nu)\nu + g(\eta) = \tau + \tau_{\text{wind}} + \ta
 
 $$T\ddot{\psi} + \dot{\psi} = K\delta$$
 
-ここで $T = 50\,\text{秒}$（本デモの中型コンテナ船）、 $K = 0.18$（舵効きゲイン）。
+ここで $T = 50$ 秒（本デモの中型コンテナ船）、 $K = 0.18$（舵効きゲイン）。
 
 ### シミュレーション結果
 

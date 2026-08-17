@@ -33,15 +33,19 @@
 | 3 | 航空機・縦運動 | 4自由度線形モデル。短周期モードとフゴイドモードの固有値解析 |
 | 4 | 船舶・操船 | Nomoto 1次モデル + PD 制御による変針シミュレーション |
 
-実装は2系統あります。
+各モデルの積分は C++ の 1 箇所だけで行われます。
 
-- **C++ 版** — 高速。`src/` 以下。Eigen で線形代数、結果を JSON 出力。
-  制御則は Pure Pursuit / Stanley / LQR。
-- **Python 版** — 手軽でグラフ付き。`vehicle_dynamics_simulation.py`(理論解説を
-  豊富に含むスタンドアロン版)と、`python/` 以下の補助スクリプト群。
+- **コア** — `src/` 以下。C++20、線形代数は Eigen。4 モデル全て(Pure Pursuit /
+  Stanley / LQR の経路追従、2 自由度車両、航空機、船舶)を積分し `results.json`
+  を出力する。
+- **フロントエンド** — `vehicle_dynamics_simulation.py` が理論を解説し、数値を
+  報告し、統合図を描く。`visualize_results.py` は既存の `results.json` を描くだけ
+  の素の描画スクリプト。どちらも積分は一切行わない。
 
-MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
-(`python/run_mpc.py`)にのみ実装しています。C++ 版には含まれません。
+唯一の例外が MPC である。制約付き最適化(`scipy.optimize` の SLSQP)を要し、
+C++ 側で実装すると外部 QP ソルバへの依存が増えるため、`python/run_mpc.py` に
+残して同じスキーマの `mpc_results.json` を出力している。これは意図的かつ明示的な
+例外であり、コアが既に持つモデルの二重実装ではない。
 
 ![C++ シミュレーション結果](docs_ja/cpp_results.png)
 
@@ -59,7 +63,7 @@ MPC は制約付き最適化(`scipy.optimize`)を使うため Python 版
 │   ├── run_mpc.py                  MPC 経路追従 (Python 専用)
 │   ├── gui_viewer.py               結果ビューア GUI (tkinter)
 │   └── lagrangian_arm.py           対比用: 2リンクアームのラグランジュ法シミュレーション
-├── vehicle_dynamics_simulation.py  Python スタンドアロン版 (理論解説つき)
+├── vehicle_dynamics_simulation.py  解説付きフロントエンド (コア実行→解説→作図)
 ├── visualize_results.py            C++ の results.json をグラフ化
 ├── docs_ja/                        日本語ドキュメント (画像を含む)
 ├── docs_en/                        英語ドキュメント
@@ -102,15 +106,20 @@ Python が見つからない場合、Python を使うステップ(2・4・5)は�
 
 ## 使い方
 
-### 方法 1: Python 版(手軽・グラフ付き、初めての方におすすめ)
+### 方法 1: 解説付き実行(手軽・グラフ付き、初めての方におすすめ)
 
 ```bash
+cmake -S . -B build && cmake --build build --config Release   # コアをビルド
 pip install -r requirements.txt
 python vehicle_dynamics_simulation.py
 ```
 
-コンソールに理論解説と結果が出力され、`vehicle_dynamics_results.png` と
-`vehicle_dynamics_ship_track.png` が生成されます。
+C++ コア(と MPC 用の `python/run_mpc.py`)を実行し、コンソールに理論解説と
+結果の数値を出力したうえで、`vehicle_dynamics_results.png` と
+`vehicle_dynamics_ship_track.png` を生成します。
+
+`--results PATH` で既存の `results.json` を再利用、`--no-mpc` で Python MPC の
+実行を省略できます。
 
 ### 方法 2: C++ 版(高速・JSON 出力)
 
@@ -185,7 +194,7 @@ python python/lagrangian_arm.py
 | テスト | 内容 |
 |---|---|
 | [`tests/regression_test.cpp`](tests/regression_test.cpp) (ctest) | C++ の主要数値(追従 RMS、スタビリティファクタ Kv、航空機の短周期/フゴイド固有値、船舶の整定時間)を既知ベースラインに固定。逸脱で非0終了 |
-| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | C++ 版と Python 版が**同一のシナリオ定数**を使っていることをソースレベルで検証(ズレ検知・ビルド不要) |
+| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | C++ コアと Python MPC が**同一のシナリオ定数**を使っていること、および解説フロントエンドが独自の積分器を持たないことをソースレベルで検証(ズレ検知・ビルド不要) |
 
 ```bash
 # C++ 回帰テスト(ビルド後)
@@ -197,8 +206,10 @@ python tests/test_param_consistency.py
 
 ### 共有シナリオ定数
 
-C++ 版と Python 版は次の定数を共有します。**片方だけ変更すると両系統の結果が
-ズレる**ため、上の `test_param_consistency.py` が同一性を監視しています。
+C++ コアと `python/run_mpc.py` は次の定数を共有します。**片方だけ変更すると
+MPC が他の 3 制御則と別の問題を解くことになる**ため、上の
+`test_param_consistency.py` が同一性を監視しています。積分刻みは意図的に共有
+していません(コアは dt = 0.05 s、MPC は 0.1 s ごとに再計算)。
 
 | 定数 | 値 |
 |---|---|

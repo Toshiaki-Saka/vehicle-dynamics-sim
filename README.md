@@ -39,16 +39,20 @@ two-link robot arm) is provided in
 | 3 | Aircraft — longitudinal motion | Linear 4-DOF model. Eigenvalue analysis of the short-period and phugoid modes |
 | 4 | Ship — maneuvering | Course-change simulation with a first-order Nomoto model + PD control |
 
-There are two implementations:
+Every model is integrated once, in C++:
 
-- **C++ version** — fast. Under `src/`. Uses Eigen for linear algebra and
-  outputs results as JSON. Control laws: Pure Pursuit / Stanley / LQR.
-- **Python version** — convenient and produces plots. `vehicle_dynamics_simulation.py`
-  (a standalone version with extensive theoretical commentary) plus the helper
-  scripts under `python/`.
+- **The core** — `src/`, C++20 with Eigen for linear algebra. It integrates all
+  four models (Pure Pursuit / Stanley / LQR path tracking, the 2-DOF car, the
+  aircraft, the ship) and writes `results.json`.
+- **The front-ends** — `vehicle_dynamics_simulation.py` narrates the theory,
+  reports the numbers and draws the combined figure; `visualize_results.py` is
+  the plain plotter for an existing `results.json`. Neither integrates anything.
 
-MPC uses constrained optimization (`scipy.optimize`), so it is implemented only
-in the Python version (`python/run_mpc.py`). It is not included in the C++ version.
+The one exception is MPC. It needs constrained optimization (`scipy.optimize`
+SLSQP), which would pull an external QP solver into the C++ build, so it stays in
+`python/run_mpc.py` and writes `mpc_results.json` in the same schema. That is a
+deliberate, documented exception — not a second copy of a model the core already
+has.
 
 ![C++ simulation results](docs_en/cpp_results.png)
 
@@ -66,7 +70,7 @@ in the Python version (`python/run_mpc.py`). It is not included in the C++ versi
 │   ├── run_mpc.py                  MPC path tracking (Python only)
 │   ├── gui_viewer.py               Results viewer GUI (tkinter)
 │   └── lagrangian_arm.py           For contrast: Lagrangian simulation of a two-link arm
-├── vehicle_dynamics_simulation.py  Standalone Python version (with theory)
+├── vehicle_dynamics_simulation.py  Narrated front-end: runs the core, explains, plots
 ├── visualize_results.py            Plot the C++ results.json
 ├── docs_en/                        English documentation (includes images)
 ├── docs_ja/                        Japanese documentation
@@ -109,15 +113,20 @@ To run the individual steps manually, or for the Linux / macOS procedure, see be
 
 ## Usage
 
-### Option 1: Python version (easy, with plots — recommended for first-timers)
+### Option 1: narrated run (easy, with plots — recommended for first-timers)
 
 ```bash
+cmake -S . -B build && cmake --build build --config Release   # build the core
 pip install -r requirements.txt
 python vehicle_dynamics_simulation.py
 ```
 
-Theory and results are printed to the console, and `vehicle_dynamics_results.png`
-and `vehicle_dynamics_ship_track.png` are generated.
+This runs the C++ core (and `python/run_mpc.py` for MPC), prints the theory and
+the resulting numbers to the console, and generates `vehicle_dynamics_results.png`
+and `vehicle_dynamics_ship_track.png`.
+
+`--results PATH` reuses an existing `results.json` instead of rebuilding it;
+`--no-mpc` skips the Python MPC run.
 
 ### Option 2: C++ version (fast, JSON output)
 
@@ -194,7 +203,7 @@ Numerical regression and parameter consistency are verified in CI (GitHub Action
 | Test | Contents |
 |---|---|
 | [`tests/regression_test.cpp`](tests/regression_test.cpp) (ctest) | Pins the key C++ numbers (tracking RMS, stability factor Kv, aircraft short-period/phugoid eigenvalues, ship settling time) to known baselines. Exits non-zero on deviation |
-| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | Verifies at the source level that the C++ and Python versions use the **same scenario constants** (drift detection; no build required) |
+| [`tests/test_param_consistency.py`](tests/test_param_consistency.py) | Verifies at the source level that the C++ core and the Python MPC use the **same scenario constants**, and that the narrated front-end has not grown an integrator of its own (drift detection; no build required) |
 
 ```bash
 # C++ regression test (after building)
@@ -206,9 +215,11 @@ python tests/test_param_consistency.py
 
 ### Shared scenario constants
 
-The C++ and Python versions share the following constants. **Changing only one
-side makes the two implementations' results diverge**, so `test_param_consistency.py`
-above monitors that they stay identical.
+The C++ core and `python/run_mpc.py` share the following constants. **Changing
+only one side makes the MPC curve solve a different problem from the other three
+control laws it is plotted against**, so `test_param_consistency.py` above
+monitors that they stay identical. The integration step is deliberately not
+shared: the core runs at dt = 0.05 s, the MPC recomputes every 0.1 s.
 
 | Constant | Value |
 |---|---|

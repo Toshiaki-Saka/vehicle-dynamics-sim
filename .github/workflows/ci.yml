@@ -50,8 +50,13 @@ jobs:
           test -s results.json && echo "results.json generated OK"
 
   # ---------------------------------------------------------------------------
-  # Python: parameter-consistency guard (C++/Python shared scenario must match)
-  # and a headless run of the full simulation.
+  # Python: parameter-consistency guard (the C++ core and the Python MPC must
+  # share a scenario) and a headless run of the narrated front-end.
+  #
+  # No compiler here on purpose -- the cpp job above already proves the core
+  # builds and that it writes results.json. This job runs the front-end against
+  # the committed examples/results.json via --results, which is what that flag
+  # exists for, so it still exercises the report/plot path and the Python MPC.
   # ---------------------------------------------------------------------------
   python:
     name: python (3.11)
@@ -65,7 +70,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Parameter consistency (C++ vs Python)
         run: python tests/test_param_consistency.py
-      - name: Run simulation headless
+      - name: Run the narrated front-end headless
         env:
           MPLBACKEND: Agg
-        run: python vehicle_dynamics_simulation.py
+        run: python vehicle_dynamics_simulation.py --results examples/results.json
